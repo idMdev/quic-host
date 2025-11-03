@@ -80,8 +80,10 @@ fi
 # Test partial content request (byte range)
 echo "Testing byte-range request for streaming..."
 RANGE_RESPONSE=$(curl -k -I -s -H "Range: bytes=0-99" https://localhost:8443/sample-video.mp4)
-if echo "$RANGE_RESPONSE" | grep -q "206\|200"; then
-    echo "✓ Byte-range requests working"
+if echo "$RANGE_RESPONSE" | grep -q "206"; then
+    echo "✓ Byte-range requests properly supported (HTTP 206)"
+elif echo "$RANGE_RESPONSE" | grep -q "200"; then
+    echo "⚠ Server returned HTTP 200 instead of 206 (range header may be ignored)"
 else
     echo "✗ Byte-range requests failed"
 fi

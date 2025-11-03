@@ -1,0 +1,14 @@
+# Ignore git directory
+.git
+.gitignore
+
+# Ignore build artifacts
+quic-host
+
+# Ignore test files
+test.sh
+
+# Ignore documentation
+README.md
+
+# But don't ignore vendor directory - we need it for the build

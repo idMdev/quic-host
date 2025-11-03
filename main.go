@@ -64,7 +64,9 @@ func main() {
 		}
 		
 		w.WriteHeader(http.StatusOK)
-		w.Write(content)
+		if _, err := w.Write(content); err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
 	})
 
 	// Start HTTP/3 (QUIC) server
@@ -112,8 +114,14 @@ func generateTLSConfig() (*tls.Config, error) {
 	// Try to load existing certificates
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		// If certificates don't exist, generate self-signed ones
-		log.Println("Using self-signed certificate (for testing only)")
+		// Check if it's a file not found error (expected for first run)
+		if os.IsNotExist(err) {
+			log.Println("Using self-signed certificate (for testing only)")
+		} else {
+			log.Printf("Warning: certificate loading error (falling back to self-signed): %v", err)
+		}
+		
+		// Generate self-signed certificates
 		cert, err = generateSelfSignedCert()
 		if err != nil {
 			return nil, err

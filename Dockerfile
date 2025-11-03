@@ -4,7 +4,10 @@ FROM golang:1.21-alpine AS builder
 WORKDIR /app
 
 # Copy all source files and vendored dependencies
-COPY . .
+COPY go.mod go.sum ./
+COPY vendor/ ./vendor/
+COPY main.go ./
+COPY static/ ./static/
 
 # Build the application using vendored dependencies
 RUN go build -mod=vendor -o quic-host main.go
@@ -14,9 +17,8 @@ FROM golang:1.21-alpine
 
 WORKDIR /app
 
-# Copy binary and static files from builder
+# Copy binary from builder (static files are embedded in the binary)
 COPY --from=builder /app/quic-host .
-COPY --from=builder /app/static ./static
 
 # Expose port 8443 (HTTPS/QUIC)
 EXPOSE 8443
