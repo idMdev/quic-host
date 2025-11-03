@@ -13,9 +13,6 @@ quic-host
 # Go vendor directory
 vendor/
 
-# Go sum file (generated)
-go.sum
-
 # Certificates (for security)
 *.pem
 *.key
