@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  quic-host:
+    build: .
+    image: quic-host:latest
+    ports:
+      - "8443:8443"
+    environment:
+      - PORT=8443
+    restart: unless-stopped
+    container_name: quic-host

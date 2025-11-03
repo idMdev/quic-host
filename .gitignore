@@ -1,0 +1,36 @@
+# Binaries
+quic-host
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test files
+*.test
+*.out
+
+# Go vendor directory
+vendor/
+
+# Go sum file (generated)
+go.sum
+
+# Certificates (for security)
+*.pem
+*.key
+certs/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+docker-volumes/
