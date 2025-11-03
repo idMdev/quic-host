@@ -64,6 +64,23 @@ docker run -v /path/to/certs:/certs \
 
 ## Testing QUIC Support
 
+### Automated Test Script
+
+Run the included test script to validate both test scenarios:
+
+```bash
+# Start the service
+docker run -d --name quic-host -p 8443:8443 quic-host
+
+# Run the test script
+./test.sh
+```
+
+The test script validates:
+- Web page content delivery over QUIC
+- Video streaming functionality
+- Protocol fallback behavior (HTTP/3 → HTTP/2 → HTTP/1.1)
+
 ### Using Chrome/Chromium
 
 1. Open Chrome DevTools (F12)
