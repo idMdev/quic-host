@@ -10,6 +10,7 @@ A container-based web service that uses QUIC (HTTP/3) to deliver web page conten
 - **Video Streaming**: Includes a sample video file streamed over QUIC
 - **Container-Based**: Easy deployment using Docker
 - **Self-Signed Certificates**: Automatic generation for testing (use proper certificates in production)
+- **Azure Deployment**: CI/CD pipeline with managed identity integration for Azure Container Instances
 
 ## Quick Start
 
@@ -141,10 +142,47 @@ quic-host/
 ├── static/           # Static web content
 │   ├── index.html    # Demo web page
 │   └── sample-video.mp4  # Sample video file
+├── azure/            # Azure deployment files
+│   ├── setup.sh      # Infrastructure setup script
+│   └── README.md     # Azure deployment guide
+├── .github/
+│   └── workflows/
+│       └── azure-deploy.yml  # CI/CD pipeline
 ├── Dockerfile        # Container build configuration
 ├── go.mod           # Go module dependencies
 └── README.md        # This file
 ```
+
+## Azure Deployment
+
+Deploy to Azure Container Instances with automated CI/CD:
+
+### Prerequisites
+
+1. Azure CLI installed: `az login`
+2. GitHub repository with Actions enabled
+3. Azure subscription
+
+### Setup
+
+```bash
+# Run infrastructure setup
+cd azure
+./setup.sh
+
+# Configure GitHub secrets (output from setup.sh):
+# - AZURE_CLIENT_ID
+# - AZURE_TENANT_ID  
+# - AZURE_SUBSCRIPTION_ID
+```
+
+### Deploy
+
+Push to `main` branch or manually trigger the workflow:
+- GitHub Actions will automatically build and deploy to Azure
+- Service will be available at: `https://quic-host-demo.eastus.azurecontainer.io:8443`
+
+For detailed Azure deployment instructions, see [azure/README.md](azure/README.md).
 
 ## Troubleshooting
 
