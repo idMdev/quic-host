@@ -80,19 +80,28 @@ Via GitHub UI:
 
 ### What Happens During Deployment
 
+The deployment uses a systemd service unit to manage the container lifecycle:
+
 ```bash
-# On the Azure VM, the workflow runs:
-docker stop quic-host
-docker rm quic-host
-docker pull quichostacr.azurecr.io/quic-host:latest
-docker run -d \
-  --name quic-host \
-  --restart unless-stopped \
-  -p 8443:8443/tcp \
-  -p 8443:8443/udp \
-  -e PORT=8443 \
-  quichostacr.azurecr.io/quic-host:latest
+# On the Azure VM, the workflow:
+# 1. Creates/updates the systemd service unit file at /etc/systemd/system/quic-host.service
+# 2. Reloads systemd daemon
+# 3. Enables the service (auto-start on boot)
+# 4. Restarts the service (pulls latest image and starts container)
+
+# The systemd service handles:
+# - Automatic container start on VM boot
+# - Container restart on failure
+# - Pulling latest image from ACR
+# - Proper container lifecycle management
 ```
+
+**Service Unit Configuration:**
+- **Type**: simple (foreground process)
+- **Restart**: always (auto-restart on failure)
+- **Dependencies**: Requires and starts after Docker service
+- **Ports**: 8443/tcp and 8443/udp
+- **Image**: Automatically pulls latest from ACR on service start
 
 ## Port Allocation
 
@@ -144,11 +153,24 @@ Both ports allow HTTP/3 (QUIC) over UDP and HTTPS over TCP. Port 443 is forwarde
 
 ## Testing Deployment
 
-### Check Container Status
+### Check Service Status
 
 ```bash
 # Via Azure CLI
 VM_NAME=$(az vm list --resource-group dns-container-rg --query "[0].name" -o tsv)
+
+# Check systemd service status
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "sudo systemctl status quic-host.service"
+```
+
+### Check Container Status
+
+```bash
+# Check if container is running
 az vm run-command invoke \
   --resource-group dns-container-rg \
   --name $VM_NAME \
@@ -186,6 +208,24 @@ curl --http3 -k https://$VM_IP:8443
 ## Troubleshooting
 
 For detailed troubleshooting steps, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+
+### Service Not Starting
+
+```bash
+# Check systemd service status and logs
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "sudo systemctl status quic-host.service --no-pager; sudo journalctl -u quic-host.service -n 50 --no-pager"
+
+# Manually restart the service
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "sudo systemctl restart quic-host.service"
+```
 
 ### Container Not Starting
 
@@ -264,11 +304,30 @@ az vm run-command invoke \
 ### Restarting Container
 
 ```bash
+# Restart via systemd service (recommended)
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "sudo systemctl restart quic-host.service"
+
+# Or restart container directly
 az vm run-command invoke \
   --resource-group dns-container-rg \
   --name $VM_NAME \
   --command-id RunShellScript \
   --scripts "docker restart quic-host"
+```
+
+### Viewing Service Logs
+
+```bash
+# View systemd service logs
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "sudo journalctl -u quic-host.service -n 100 --no-pager"
 ```
 
 ## Best Practices
@@ -278,6 +337,8 @@ az vm run-command invoke \
 3. **Use workflow_dispatch**: For manual testing without pushing to main
 4. **Keep containers small**: Minimize image size for faster deployments
 5. **Version your images**: The workflow tags with both `latest` and commit SHA
+6. **Use systemd for container management**: Provides automatic restart, boot persistence, and proper lifecycle management
+7. **Check service status after deployment**: Verify systemd service is active and container is running
 
 ## Related Documentation
 
