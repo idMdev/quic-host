@@ -70,9 +70,6 @@ jobs:
             # Get ACR login server
             ACR_LOGIN_SERVER="${{ env.REGISTRY_NAME }}.azurecr.io"
             
-            # Read the systemd service file content
-            SERVICE_CONTENT=$(cat quic-host.service | sed "s|\${ACR_LOGIN_SERVER}|$ACR_LOGIN_SERVER|g")
-            
             # Deploy container on VM using systemd service
             az vm run-command invoke \
               --resource-group ${{ env.RESOURCE_GROUP }} \
@@ -83,7 +80,6 @@ jobs:
                 "imageName=${{ env.IMAGE_NAME }}" \
                 "containerName=${{ env.CONTAINER_NAME }}" \
                 "acrPassword=${{ env.ACR_PASSWORD }}" \
-                "serviceContent=$SERVICE_CONTENT" \
               --scripts \
                 'set -e' \
                 'echo "Ensuring Docker service is enabled on boot..."' \
@@ -92,7 +88,24 @@ jobs:
                 'echo "Logging into Azure Container Registry..."' \
                 'echo "$acrPassword" | docker login "$acrServer" --username 00000000-0000-0000-0000-000000000000 --password-stdin' \
                 'echo "Creating systemd service unit file..."' \
-                'echo "$serviceContent" | sudo tee /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "[Unit]" | sudo tee /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "Description=QUIC Host Container Service" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "After=docker.service" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "Requires=docker.service" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "[Service]" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "Type=simple" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "Restart=always" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "RestartSec=5" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "TimeoutStartSec=0" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "ExecStartPre=-/usr/bin/docker stop quic-host" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "ExecStartPre=-/usr/bin/docker rm quic-host" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "ExecStartPre=/usr/bin/docker pull $acrServer/quic-host:latest" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "ExecStart=/usr/bin/docker run --name quic-host -p 8443:8443/tcp -p 8443:8443/udp -e PORT=8443 $acrServer/quic-host:latest" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "ExecStop=/usr/bin/docker stop quic-host" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "[Install]" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "WantedBy=multi-user.target" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
                 'echo "Reloading systemd daemon..."' \
                 'sudo systemctl daemon-reload' \
                 'echo "Enabling quic-host service..."' \
