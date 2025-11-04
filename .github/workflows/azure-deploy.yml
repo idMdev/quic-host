@@ -107,10 +107,13 @@ jobs:
                 'echo "Testing local container connectivity..."' \
                 'curl -k -v --max-time 5 https://localhost:8443 2>&1 | head -20 || echo "Container connectivity test failed"' \
                 'echo "Setting up port forwarding from 443 to 8443..."' \
+                'echo "Installing iptables-persistent for rule persistence..."' \
+                'sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iptables-persistent > /dev/null 2>&1 || echo "iptables-persistent already installed or failed to install"' \
+                'echo "Configuring iptables rules..."' \
                 'sudo iptables -t nat -C PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443 2>/dev/null || sudo iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443' \
                 'sudo iptables -t nat -C PREROUTING -p udp --dport 443 -j REDIRECT --to-port 8443 2>/dev/null || sudo iptables -t nat -A PREROUTING -p udp --dport 443 -j REDIRECT --to-port 8443' \
                 'echo "Saving iptables rules..."' \
-                'sudo sh -c "iptables-save > /etc/iptables/rules.v4" 2>/dev/null || sudo sh -c "mkdir -p /etc/iptables && iptables-save > /etc/iptables/rules.v4"' \
+                'sudo netfilter-persistent save 2>/dev/null || sudo sh -c "mkdir -p /etc/iptables && iptables-save > /etc/iptables/rules.v4"' \
                 'echo "Port forwarding configured: 443 -> 8443 (TCP and UDP)"' \
                 'echo "Verifying iptables rules..."' \
                 'sudo iptables -t nat -L PREROUTING -n -v | grep -E "(443|8443)" || echo "No matching rules found"' \
