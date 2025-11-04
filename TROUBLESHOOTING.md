@@ -14,12 +14,22 @@ This document provides solutions to common issues when deploying and running qui
 ### Symptoms
 - Container doesn't appear in `docker ps` output
 - `docker logs quic-host` shows errors or no output
+- Service not accessible on port 8443
 
 ### Diagnostic Commands
 
 Run these commands on the VM to diagnose:
 
 ```bash
+# Check systemd service status
+sudo systemctl status quic-host.service
+
+# Check if service is enabled (auto-start on boot)
+sudo systemctl is-enabled quic-host.service
+
+# View service logs
+sudo journalctl -u quic-host.service -n 50 --no-pager
+
 # Check if container is running
 docker ps -a --filter "name=quic-host"
 
@@ -33,32 +43,57 @@ sudo systemctl status docker
 sudo systemctl is-enabled docker
 ```
 
-### Solution: Ensure Docker Starts on Boot
+### Solution: Ensure Services Start on Boot
 
 ```bash
 # Enable Docker service
 sudo systemctl enable docker
 sudo systemctl start docker
 
-# Verify
+# Enable quic-host service
+sudo systemctl enable quic-host.service
+sudo systemctl start quic-host.service
+
+# Verify both are enabled
 sudo systemctl is-enabled docker
+sudo systemctl is-enabled quic-host.service
 ```
 
-### Solution: Check Container Restart Policy
+### Solution: Restart the Service
 
-The deployment should use `--restart unless-stopped`:
+If the service failed to start, restart it:
 
 ```bash
-docker inspect quic-host --format '{{.HostConfig.RestartPolicy.Name}}'
+# Restart the systemd service (will pull latest image and start container)
+sudo systemctl restart quic-host.service
+
+# Check status
+sudo systemctl status quic-host.service
+
+# View recent logs
+sudo journalctl -u quic-host.service -n 50 --no-pager
 ```
 
-Expected output: `unless-stopped`
+### Solution: Manual Container Start (Legacy)
 
-If not set correctly, redeploy or manually update:
+If systemd service is not set up, you can start the container manually (not recommended):
 
 ```bash
-docker update --restart unless-stopped quic-host
+# Stop and remove existing container
+docker stop quic-host 2>/dev/null || true
+docker rm quic-host 2>/dev/null || true
+
+# Start container with proper restart policy
+docker run -d \
+  --name quic-host \
+  --restart unless-stopped \
+  -p 8443:8443/tcp \
+  -p 8443:8443/udp \
+  -e PORT=8443 \
+  quichostacr.azurecr.io/quic-host:latest
 ```
+
+**Note**: Using systemd service is the recommended approach as it provides better lifecycle management.
 
 ## ERR_CONNECTION_REFUSED
 

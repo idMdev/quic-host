@@ -191,6 +191,8 @@ The setup script will:
 
 Push to `main` branch or manually trigger the workflow:
 - GitHub Actions will automatically build and deploy to Azure VM
+- Deployment uses systemd service for container lifecycle management
+- Container automatically starts on VM boot and restarts on failure
 - Service will be available at: `https://VM_PUBLIC_IP:8443`
 
 The deployment runs independently from dns-container and can update the quic-host container without affecting other services on the VM.

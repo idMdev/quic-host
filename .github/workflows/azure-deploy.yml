@@ -70,7 +70,10 @@ jobs:
             # Get ACR login server
             ACR_LOGIN_SERVER="${{ env.REGISTRY_NAME }}.azurecr.io"
             
-            # Deploy container on VM (password passed via parameter, used with stdin to avoid exposure)
+            # Read the systemd service file content
+            SERVICE_CONTENT=$(cat quic-host.service | sed "s|\${ACR_LOGIN_SERVER}|$ACR_LOGIN_SERVER|g")
+            
+            # Deploy container on VM using systemd service
             az vm run-command invoke \
               --resource-group ${{ env.RESOURCE_GROUP }} \
               --name $VM_NAME \
@@ -80,6 +83,7 @@ jobs:
                 "imageName=${{ env.IMAGE_NAME }}" \
                 "containerName=${{ env.CONTAINER_NAME }}" \
                 "acrPassword=${{ env.ACR_PASSWORD }}" \
+                "serviceContent=$SERVICE_CONTENT" \
               --scripts \
                 'set -e' \
                 'echo "Ensuring Docker service is enabled on boot..."' \
@@ -87,25 +91,24 @@ jobs:
                 'sudo systemctl start docker' \
                 'echo "Logging into Azure Container Registry..."' \
                 'echo "$acrPassword" | docker login "$acrServer" --username 00000000-0000-0000-0000-000000000000 --password-stdin' \
-                'echo "Pulling latest image..."' \
-                'docker pull "$acrServer/$imageName:latest"' \
-                'echo "Stopping and removing old container if exists..."' \
-                'docker stop "$containerName" 2>/dev/null || true' \
-                'docker rm "$containerName" 2>/dev/null || true' \
-                'echo "Starting new container..."' \
-                'docker run -d --name "$containerName" --restart unless-stopped -p 8443:8443/tcp -p 8443:8443/udp -e PORT=8443 "$acrServer/$imageName:latest"' \
-                'echo "Waiting for container to start..."' \
-                'sleep 5' \
+                'echo "Creating systemd service unit file..."' \
+                'echo "$serviceContent" | sudo tee /etc/systemd/system/quic-host.service > /dev/null' \
+                'echo "Reloading systemd daemon..."' \
+                'sudo systemctl daemon-reload' \
+                'echo "Enabling quic-host service..."' \
+                'sudo systemctl enable quic-host.service' \
+                'echo "Restarting quic-host service (will pull latest image and start container)..."' \
+                'sudo systemctl restart quic-host.service' \
+                'echo "Waiting for service to start..."' \
+                'sleep 10' \
+                'echo "Checking service status..."' \
+                'sudo systemctl status quic-host.service --no-pager || true' \
                 'echo "Verifying container is running..."' \
                 'docker ps --filter "name=$containerName" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"' \
                 'echo "Checking container logs..."' \
-                'docker logs "$containerName" --tail 20' \
+                'docker logs "$containerName" --tail 20 2>&1 || echo "Container not yet started or logs unavailable"' \
                 'echo "Checking if ports are listening..."' \
-                'sudo netstat -tulpn | grep 8443 || echo "Port 8443 not found in netstat"' \
-                'echo "Checking container network settings..."' \
-                'docker inspect "$containerName" --format "{{.NetworkSettings.IPAddress}}"' \
-                'echo "Testing local container connectivity..."' \
-                'curl -k -v --max-time 5 https://localhost:8443 2>&1 | head -20 || echo "Container connectivity test failed"' \
+                'sudo netstat -tulpn | grep 8443 || echo "Port 8443 not found in netstat (may still be starting)"' \
                 'echo "Setting up port forwarding from 443 to 8443..."' \
                 'echo "Installing iptables-persistent for rule persistence..."' \
                 'sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iptables-persistent > /dev/null 2>&1 || echo "iptables-persistent already installed or failed to install"' \
@@ -117,7 +120,7 @@ jobs:
                 'echo "Port forwarding configured: 443 -> 8443 (TCP and UDP)"' \
                 'echo "Verifying iptables rules..."' \
                 'sudo iptables -t nat -L PREROUTING -n -v | grep -E "(443|8443)" || echo "No matching rules found"' \
-                'echo "Deployment complete!"'
+                'echo "Deployment complete! Service is managed by systemd and will auto-start on boot."'
       
       - name: Get deployment status
         uses: azure/CLI@v1

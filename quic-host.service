@@ -1,0 +1,41 @@
+# Systemd service unit file for QUIC Host container
+# This file is deployed to /etc/systemd/system/quic-host.service on the Azure VM
+# It manages the container lifecycle and ensures auto-start on boot
+#
+# The ${ACR_LOGIN_SERVER} variable is replaced during deployment by the GitHub Actions workflow
+# 
+# Usage:
+#   sudo systemctl enable quic-host.service  # Enable auto-start on boot
+#   sudo systemctl start quic-host.service   # Start the service
+#   sudo systemctl stop quic-host.service    # Stop the service
+#   sudo systemctl restart quic-host.service # Restart (pulls latest image)
+#   sudo systemctl status quic-host.service  # Check status
+#   sudo journalctl -u quic-host.service     # View logs
+
+[Unit]
+Description=QUIC Host Container Service
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+TimeoutStartSec=0
+# Note: The '-' prefix on ExecStartPre commands means "ignore failures"
+# This allows the service to start even if the container doesn't exist yet
+ExecStartPre=-/usr/bin/docker stop quic-host
+ExecStartPre=-/usr/bin/docker rm quic-host
+# Always pull latest image on service start to ensure we're running the most recent version
+ExecStartPre=/usr/bin/docker pull ${ACR_LOGIN_SERVER}/quic-host:latest
+# Do not use --rm flag as we want the container to persist and be managed by systemd
+# The ExecStartPre commands handle cleanup before starting a new instance
+ExecStart=/usr/bin/docker run --name quic-host \
+    -p 8443:8443/tcp \
+    -p 8443:8443/udp \
+    -e PORT=8443 \
+    ${ACR_LOGIN_SERVER}/quic-host:latest
+ExecStop=/usr/bin/docker stop quic-host
+
+[Install]
+WantedBy=multi-user.target
