@@ -201,12 +201,41 @@ else
         echo "WARNING: Docker may not be installed on VM. Please ensure Docker is installed."
     fi
     
-    # Check NSG rules for port 8443
+    # Check NSG rules for ports 443 and 8443
     echo ""
-    echo "Checking Network Security Group rules for port 8443..."
+    echo "Checking Network Security Group rules for ports 443 and 8443..."
     NSG_NAME=$(az network nsg list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv)
     
     if [ -n "$NSG_NAME" ]; then
+        # Check for port 443 rule
+        HTTPS_RULE=$(az network nsg rule show \
+            --resource-group "$RESOURCE_GROUP" \
+            --nsg-name "$NSG_NAME" \
+            --name "AllowHTTPS" \
+            --query "name" -o tsv 2>/dev/null || echo "")
+        
+        if [ -z "$HTTPS_RULE" ]; then
+            echo "Creating NSG rule for HTTPS (port 443 TCP+UDP)..."
+            az network nsg rule create \
+                --resource-group "$RESOURCE_GROUP" \
+                --nsg-name "$NSG_NAME" \
+                --name "AllowHTTPS" \
+                --priority 300 \
+                --source-address-prefixes '*' \
+                --source-port-ranges '*' \
+                --destination-address-prefixes '*' \
+                --destination-port-ranges 443 \
+                --access Allow \
+                --protocol '*' \
+                --direction Inbound \
+                --description "Allow HTTPS traffic on port 443 (forwarded to 8443)" \
+                --output table
+            echo "NSG rule for port 443 created"
+        else
+            echo "NSG rule for port 443 already exists"
+        fi
+        
+        # Check for port 8443 rule
         QUIC_RULE=$(az network nsg rule show \
             --resource-group "$RESOURCE_GROUP" \
             --nsg-name "$NSG_NAME" \
@@ -229,12 +258,12 @@ else
                 --direction Inbound \
                 --description "Allow QUIC traffic on port 8443" \
                 --output table
-            echo "NSG rule created"
+            echo "NSG rule for port 8443 created"
         else
-            echo "NSG rule for QUIC already exists"
+            echo "NSG rule for port 8443 already exists"
         fi
     else
-        echo "WARNING: No NSG found. Please ensure port 8443 (TCP+UDP) is open."
+        echo "WARNING: No NSG found. Please ensure ports 443 and 8443 (TCP+UDP) are open."
     fi
 fi
 
@@ -262,7 +291,8 @@ if [ -n "$VM_NAME" ]; then
     echo "  - Public IP: $VM_IP"
     echo ""
     echo "Service will be accessible at:"
-    echo "  https://$VM_IP:8443"
+    echo "  - https://$VM_IP:443 (forwarded to container)"
+    echo "  - https://$VM_IP:8443 (direct container access)"
 fi
 
 echo ""

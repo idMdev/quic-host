@@ -82,6 +82,9 @@ jobs:
                 "acrPassword=${{ env.ACR_PASSWORD }}" \
               --scripts \
                 'set -e' \
+                'echo "Ensuring Docker service is enabled on boot..."' \
+                'sudo systemctl enable docker' \
+                'sudo systemctl start docker' \
                 'echo "Logging into Azure Container Registry..."' \
                 'echo "$acrPassword" | docker login "$acrServer" --username 00000000-0000-0000-0000-000000000000 --password-stdin' \
                 'echo "Pulling latest image..."' \
@@ -91,8 +94,30 @@ jobs:
                 'docker rm "$containerName" 2>/dev/null || true' \
                 'echo "Starting new container..."' \
                 'docker run -d --name "$containerName" --restart unless-stopped -p 8443:8443/tcp -p 8443:8443/udp -e PORT=8443 "$acrServer/$imageName:latest"' \
-                'echo "Deployment complete!"' \
-                'docker ps --filter "name=$containerName"'
+                'echo "Waiting for container to start..."' \
+                'sleep 5' \
+                'echo "Verifying container is running..."' \
+                'docker ps --filter "name=$containerName" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"' \
+                'echo "Checking container logs..."' \
+                'docker logs "$containerName" --tail 20' \
+                'echo "Checking if ports are listening..."' \
+                'sudo netstat -tulpn | grep 8443 || echo "Port 8443 not found in netstat"' \
+                'echo "Checking container network settings..."' \
+                'docker inspect "$containerName" --format "{{.NetworkSettings.IPAddress}}"' \
+                'echo "Testing local container connectivity..."' \
+                'curl -k -v --max-time 5 https://localhost:8443 2>&1 | head -20 || echo "Container connectivity test failed"' \
+                'echo "Setting up port forwarding from 443 to 8443..."' \
+                'echo "Installing iptables-persistent for rule persistence..."' \
+                'sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iptables-persistent > /dev/null 2>&1 || echo "iptables-persistent already installed or failed to install"' \
+                'echo "Configuring iptables rules..."' \
+                'sudo iptables -t nat -C PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443 2>/dev/null || sudo iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443' \
+                'sudo iptables -t nat -C PREROUTING -p udp --dport 443 -j REDIRECT --to-port 8443 2>/dev/null || sudo iptables -t nat -A PREROUTING -p udp --dport 443 -j REDIRECT --to-port 8443' \
+                'echo "Saving iptables rules..."' \
+                'sudo netfilter-persistent save 2>/dev/null || sudo sh -c "mkdir -p /etc/iptables && iptables-save > /etc/iptables/rules.v4"' \
+                'echo "Port forwarding configured: 443 -> 8443 (TCP and UDP)"' \
+                'echo "Verifying iptables rules..."' \
+                'sudo iptables -t nat -L PREROUTING -n -v | grep -E "(443|8443)" || echo "No matching rules found"' \
+                'echo "Deployment complete!"'
       
       - name: Get deployment status
         uses: azure/CLI@v1
@@ -108,5 +133,7 @@ jobs:
             echo "Image: ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest"
             echo "VM: $VM_NAME"
             echo "Public IP: $VM_IP"
-            echo "QUIC URL: https://$VM_IP:8443"
+            echo "QUIC URLs:"
+            echo "  - https://$VM_IP:443 (forwarded to container)"
+            echo "  - https://$VM_IP:8443 (direct container access)"
             echo "========================================="

@@ -99,8 +99,11 @@ docker run -d \
 | Service | Port | Protocol | Purpose |
 |---------|------|----------|---------|
 | dns-container | 53 | TCP/UDP | DNS queries |
+| quic-host | 443 | TCP/UDP | HTTPS/QUIC (forwarded to 8443) |
 | quic-host | 8443 | TCP | HTTP/2, HTTP/1.1 fallback |
 | quic-host | 8443 | UDP | QUIC (HTTP/3) |
+
+> **Note**: Port 443 is forwarded to port 8443 using iptables rules configured during deployment.
 
 ## Independence Between Services
 
@@ -119,9 +122,16 @@ docker run -d \
 
 ## Network Security Group Rules
 
-The setup script creates the following NSG rule:
+The setup script creates the following NSG rules:
 
 ```
+Name: AllowHTTPS
+Priority: 300
+Source: * (any)
+Destination Port: 443
+Protocol: * (both TCP and UDP)
+Direction: Inbound
+
 Name: AllowQUIC
 Priority: 310
 Source: * (any)
@@ -130,7 +140,7 @@ Protocol: * (both TCP and UDP)
 Direction: Inbound
 ```
 
-This allows both HTTP/2 (TCP) and QUIC (UDP) traffic.
+Both ports allow HTTP/3 (QUIC) over UDP and HTTPS over TCP. Port 443 is forwarded to port 8443 by iptables rules on the VM.
 
 ## Testing Deployment
 
@@ -162,14 +172,20 @@ az vm run-command invoke \
 # Get VM public IP
 VM_IP=$(az vm list-ip-addresses --resource-group dns-container-rg --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
 
-# Test HTTPS endpoint
+# Test HTTPS endpoint on standard port
+curl -k https://$VM_IP
+
+# Test HTTPS endpoint on direct port
 curl -k https://$VM_IP:8443
 
 # Test with HTTP/3 support (if available)
+curl --http3 -k https://$VM_IP
 curl --http3 -k https://$VM_IP:8443
 ```
 
 ## Troubleshooting
+
+For detailed troubleshooting steps, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ### Container Not Starting
 
