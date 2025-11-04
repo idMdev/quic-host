@@ -155,13 +155,18 @@ quic-host/
 
 ## Azure Deployment
 
-Deploy to Azure Container Apps with automated CI/CD:
+Deploy to Azure VM with automated CI/CD. The service is deployed to a shared Azure VM alongside dns-container.
+
+### Why Azure VM?
+
+Azure Container Apps does not support UDP ingress, which is required for QUIC (HTTP/3) protocol. This service is deployed to an Azure VM that supports both TCP and UDP traffic, allowing proper QUIC functionality.
 
 ### Prerequisites
 
 1. Azure CLI installed: `az login`
 2. GitHub repository with Actions enabled
 3. Azure subscription
+4. Azure VM with Docker installed (shared with dns-container)
 
 ### Setup
 
@@ -176,11 +181,19 @@ cd azure
 # - AZURE_SUBSCRIPTION_ID
 ```
 
+The setup script will:
+- Verify/create shared resources with dns-container
+- Configure Azure Container Registry
+- Set up GitHub Actions authentication
+- Create Network Security Group rules for port 8443 (TCP+UDP)
+
 ### Deploy
 
 Push to `main` branch or manually trigger the workflow:
-- GitHub Actions will automatically build and deploy to Azure
-- Service will be available at: `https://quic-host.eastus.azurecontainerapps.io`
+- GitHub Actions will automatically build and deploy to Azure VM
+- Service will be available at: `https://VM_PUBLIC_IP:8443`
+
+The deployment runs independently from dns-container and can update the quic-host container without affecting other services on the VM.
 
 For detailed Azure deployment instructions, see [azure/README.md](azure/README.md).
 
@@ -190,6 +203,7 @@ For detailed Azure deployment instructions, see [azure/README.md](azure/README.m
 - Ensure you're using a modern browser (Chrome 87+, Firefox 88+, Safari 14+)
 - Check browser flags for QUIC/HTTP3 support
 - Verify the port is accessible and not blocked by firewall
+- Confirm UDP port 8443 is open (required for QUIC)
 
 **Certificate errors**:
 - Accept the self-signed certificate in your browser
@@ -198,6 +212,11 @@ For detailed Azure deployment instructions, see [azure/README.md](azure/README.m
 **Container build fails**:
 - Ensure Docker is installed and running
 - Check Go version compatibility (1.21+)
+
+**QUIC not working on Azure VM**:
+- Verify Network Security Group allows port 8443 UDP traffic
+- Check container is running: `docker ps --filter name=quic-host`
+- Check container logs: `docker logs quic-host`
 
 ## License
 

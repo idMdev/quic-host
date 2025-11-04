@@ -30,7 +30,7 @@ docker-build:
 	docker build -t quic-host .
 
 docker-run:
-	docker run -d --name quic-host -p 8443:8443 quic-host
+	docker run -d --name quic-host -p 8443:8443/tcp -p 8443:8443/udp quic-host
 
 docker-stop:
 	docker stop quic-host && docker rm quic-host
