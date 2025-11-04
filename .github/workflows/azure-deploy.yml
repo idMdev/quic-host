@@ -58,7 +58,7 @@ jobs:
       - name: Deploy to Azure Container Instances
         run: |
           # Check if container exists and delete it for update
-          if az container show --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.CONTAINER_NAME }} &> /dev/null; then
+          if az container show --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.CONTAINER_NAME }} > /dev/null 2>&1; then
             echo "Container exists, deleting for update..."
             az container delete \
               --resource-group ${{ env.RESOURCE_GROUP }} \
@@ -67,6 +67,7 @@ jobs:
           fi
           
           # Create new container with ACR authentication
+          # Note: 00000000-0000-0000-0000-000000000000 is the standard username for ACR token authentication
           az container create \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --name ${{ env.CONTAINER_NAME }} \
