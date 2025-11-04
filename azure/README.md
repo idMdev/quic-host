@@ -6,8 +6,9 @@ This directory contains infrastructure setup and deployment automation for deplo
 
 - **Azure Container Registry (ACR)**: Stores Docker images
 - **Azure Container Instances (ACI)**: Runs the containerized service
-- **Managed Identity**: System-assigned identity for secure authentication
+- **Managed Identity**: System-assigned identity for secure authentication to Azure services
 - **GitHub Actions**: CI/CD pipeline with OIDC authentication
+- **ACR Authentication**: Uses access tokens from the GitHub Actions service principal for image pulls
 
 ## Prerequisites
 
@@ -47,9 +48,11 @@ Required secrets:
 ### 3. Deploy via GitHub Actions
 
 The deployment workflow (`.github/workflows/azure-deploy.yml`) will automatically:
-1. Build the Docker image
-2. Push to Azure Container Registry
-3. Deploy to Azure Container Instances
+1. Authenticate to Azure using OIDC
+2. Get ACR access token for authentication
+3. Build the Docker image
+4. Push to Azure Container Registry
+5. Deploy to Azure Container Instances
 
 **Trigger deployment:**
 - Push to `main` branch
@@ -129,7 +132,8 @@ curl -k https://quic-host-demo.eastus.azurecontainer.io:8443
 
 ### Security
 - OIDC authentication (no long-lived secrets)
-- Managed identity for Azure resources
+- System-assigned managed identity for Azure services
+- ACR access tokens for secure image pulls
 - Private container registry
 - TLS 1.2+ for QUIC connections
 
