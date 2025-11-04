@@ -9,6 +9,8 @@ LOCATION="eastus"
 REGISTRY_NAME="quichostacr"
 SUBSCRIPTION_ID="${AZURE_SUBSCRIPTION_ID}"
 APP_NAME="quic-host-github-app"
+CONTAINER_APP_ENV="quic-host-env"
+CONTAINER_APP_NAME="quic-host"
 
 echo "========================================="
 echo "Azure Infrastructure Setup for QUIC Host"
@@ -129,6 +131,16 @@ az role assignment create \
     --output table
 
 echo ""
+
+# Create Container Apps Environment
+echo "Creating Container Apps Environment: $CONTAINER_APP_ENV"
+az containerapp env create \
+    --name "$CONTAINER_APP_ENV" \
+    --resource-group "$RESOURCE_GROUP" \
+    --location "$LOCATION" \
+    --output table
+
+echo ""
 echo "========================================="
 echo "Setup Complete!"
 echo "========================================="
@@ -145,8 +157,9 @@ echo ""
 echo "Azure Resources Created:"
 echo "  - Resource Group: $RESOURCE_GROUP"
 echo "  - Container Registry: $REGISTRY_NAME.azurecr.io"
+echo "  - Container Apps Environment: $CONTAINER_APP_ENV"
 echo "  - App Registration: $APP_NAME"
 echo ""
-echo "Container will be deployed to:"
-echo "  https://quic-host-demo.$LOCATION.azurecontainer.io:8443"
+echo "Container app will be deployed to:"
+echo "  https://$CONTAINER_APP_NAME.${LOCATION}.azurecontainerapps.io"
 echo ""
