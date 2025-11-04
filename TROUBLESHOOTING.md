@@ -3,11 +3,97 @@
 This document provides solutions to common issues when deploying and running quic-host.
 
 ## Table of Contents
+- [GitHub Actions Deployment Failures](#github-actions-deployment-failures)
 - [Container Not Starting](#container-not-starting)
 - [ERR_CONNECTION_REFUSED](#err_connection_refused)
 - [SSL_ERROR_SYSCALL](#ssl_error_syscall)
 - [Port Forwarding Issues](#port-forwarding-issues)
 - [QUIC/UDP Not Working](#quicudp-not-working)
+
+## GitHub Actions Deployment Failures
+
+### Symptoms
+- GitHub Actions workflow completes but container is not running on VM
+- Error messages in Azure VM run-command output like:
+  - `[Unit]: not found`
+  - `[Service]: not found`
+  - `Host: not found`
+- Container never gets deployed despite successful build
+
+### Root Cause
+
+This issue occurred when the systemd service file content was being passed as a parameter to `az vm run-command invoke`. The multi-line content was not properly handled, causing bash to interpret the service file lines (like `[Unit]`, `[Service]`) as bash commands instead of file content.
+
+### Solution Applied (Fixed in Latest Version)
+
+The workflow now writes the systemd service file line-by-line using individual `echo` commands instead of passing multi-line content as a parameter. This ensures proper handling by the Azure VM run-command.
+
+**Before (Broken):**
+```yaml
+SERVICE_CONTENT=$(cat quic-host.service | sed "s|\${ACR_LOGIN_SERVER}|$ACR_LOGIN_SERVER|g")
+# ... pass as parameter
+"serviceContent=$SERVICE_CONTENT"
+# ... then try to echo it
+'echo "$serviceContent" | sudo tee /etc/systemd/system/quic-host.service > /dev/null'
+```
+
+**After (Fixed):**
+```yaml
+# Write file line by line with explicit echo commands
+'echo "[Unit]" | sudo tee /etc/systemd/system/quic-host.service > /dev/null'
+'echo "Description=QUIC Host Container Service" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null'
+# ... continues for each line
+```
+
+### Manual Fix for Existing Deployments
+
+If you need to manually fix a VM that has this issue:
+
+```bash
+# SSH to the VM
+ssh user@VM_PUBLIC_IP
+
+# Create the systemd service file manually
+sudo tee /etc/systemd/system/quic-host.service > /dev/null <<EOF
+[Unit]
+Description=QUIC Host Container Service
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+TimeoutStartSec=0
+ExecStartPre=-/usr/bin/docker stop quic-host
+ExecStartPre=-/usr/bin/docker rm quic-host
+ExecStartPre=/usr/bin/docker pull quichostacr.azurecr.io/quic-host:latest
+ExecStart=/usr/bin/docker run --name quic-host -p 8443:8443/tcp -p 8443:8443/udp -e PORT=8443 quichostacr.azurecr.io/quic-host:latest
+ExecStop=/usr/bin/docker stop quic-host
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Reload systemd
+sudo systemctl daemon-reload
+
+# Enable and start the service
+sudo systemctl enable quic-host.service
+sudo systemctl start quic-host.service
+
+# Verify it's running
+sudo systemctl status quic-host.service
+docker ps --filter "name=quic-host"
+```
+
+### Prevention
+
+This issue is now fixed in the GitHub Actions workflow. To ensure you're using the fixed version:
+
+1. Pull the latest changes from the main branch
+2. Re-run the GitHub Actions workflow
+3. The deployment should now succeed and the container will be deployed properly
 
 ## Container Not Starting
 
