@@ -10,7 +10,7 @@ A container-based web service that uses QUIC (HTTP/3) to deliver web page conten
 - **Video Streaming**: Includes a sample video file streamed over QUIC
 - **Container-Based**: Easy deployment using Docker
 - **Self-Signed Certificates**: Automatic generation for testing (use proper certificates in production)
-- **Azure Deployment**: CI/CD pipeline with managed identity integration for Azure Container Instances
+- **Azure Deployment**: CI/CD pipeline with managed identity integration for Azure Container Apps
 
 ## Quick Start
 
@@ -155,7 +155,7 @@ quic-host/
 
 ## Azure Deployment
 
-Deploy to Azure Container Instances with automated CI/CD:
+Deploy to Azure Container Apps with automated CI/CD:
 
 ### Prerequisites
 
@@ -180,7 +180,7 @@ cd azure
 
 Push to `main` branch or manually trigger the workflow:
 - GitHub Actions will automatically build and deploy to Azure
-- Service will be available at: `https://quic-host-demo.eastus.azurecontainer.io:8443`
+- Service will be available at: `https://quic-host.eastus.azurecontainerapps.io`
 
 For detailed Azure deployment instructions, see [azure/README.md](azure/README.md).
 

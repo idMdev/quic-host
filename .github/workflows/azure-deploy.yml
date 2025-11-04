@@ -1,4 +1,4 @@
-name: Deploy to Azure Container Instances
+name: Deploy to Azure Container Apps
 
 on:
   push:
@@ -7,7 +7,8 @@ on:
   workflow_dispatch:
 
 env:
-  CONTAINER_NAME: quic-host
+  CONTAINER_APP_NAME: quic-host
+  CONTAINER_APP_ENV: quic-host-env
   RESOURCE_GROUP: quic-host-rg
   LOCATION: eastus
   REGISTRY_NAME: quichostacr
@@ -55,41 +56,41 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       
-      - name: Deploy to Azure Container Instances
+      - name: Deploy to Azure Container Apps
         run: |
-          # Check if container exists and delete it for update
-          if az container show --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.CONTAINER_NAME }} > /dev/null 2>&1; then
-            echo "Container exists, deleting for update..."
-            az container delete \
+          # Check if container app exists
+          if az containerapp show --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.CONTAINER_APP_NAME }} > /dev/null 2>&1; then
+            echo "Container app exists, updating..."
+            az containerapp update \
+              --name ${{ env.CONTAINER_APP_NAME }} \
               --resource-group ${{ env.RESOURCE_GROUP }} \
-              --name ${{ env.CONTAINER_NAME }} \
-              --yes
+              --image ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          else
+            echo "Creating new container app..."
+            # Note: 00000000-0000-0000-0000-000000000000 is the standard username for ACR token authentication
+            az containerapp create \
+              --name ${{ env.CONTAINER_APP_NAME }} \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --environment ${{ env.CONTAINER_APP_ENV }} \
+              --image ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+              --registry-server ${{ env.REGISTRY_NAME }}.azurecr.io \
+              --registry-username 00000000-0000-0000-0000-000000000000 \
+              --registry-password ${{ env.ACR_PASSWORD }} \
+              --target-port 8443 \
+              --ingress external \
+              --transport http2 \
+              --cpu 1.0 \
+              --memory 2.0Gi \
+              --min-replicas 1 \
+              --max-replicas 1 \
+              --env-vars PORT=8443
           fi
-          
-          # Create new container with ACR authentication
-          # Note: 00000000-0000-0000-0000-000000000000 is the standard username for ACR token authentication
-          az container create \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name ${{ env.CONTAINER_NAME }} \
-            --image ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} \
-            --registry-login-server ${{ env.REGISTRY_NAME }}.azurecr.io \
-            --registry-username 00000000-0000-0000-0000-000000000000 \
-            --registry-password ${{ env.ACR_PASSWORD }} \
-            --assign-identity \
-            --dns-name-label quic-host-demo \
-            --ports 8443 \
-            --protocol TCP \
-            --cpu 1 \
-            --memory 1.5 \
-            --environment-variables PORT=8443 \
-            --restart-policy OnFailure \
-            --location ${{ env.LOCATION }}
       
-      - name: Get container instance details
+      - name: Get container app details
         run: |
-          echo "Container deployed successfully!"
-          az container show \
+          echo "Container app deployed successfully!"
+          az containerapp show \
             --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name ${{ env.CONTAINER_NAME }} \
-            --query "{FQDN:ipAddress.fqdn,ProvisioningState:provisioningState,State:instanceView.state}" \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --query "{FQDN:properties.configuration.ingress.fqdn,ProvisioningState:properties.provisioningState}" \
             --output table
