@@ -4,13 +4,16 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'azure/setup.sh'
+      - '*.md'
   workflow_dispatch:
 
 env:
   REGISTRY_NAME: quichostacr
   IMAGE_NAME: quic-host
   CONTAINER_NAME: quic-host
-  RESOURCE_GROUP: dns-container-rg
+  RESOURCE_GROUP: dns-server-rg
 
 jobs:
   build-and-deploy:
