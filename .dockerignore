@@ -10,5 +10,3 @@ test.sh
 
 # Ignore documentation
 README.md
-
-# But don't ignore vendor directory - we need it for the build
