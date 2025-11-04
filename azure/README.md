@@ -191,7 +191,7 @@ az account show
 
 ## Custom Certificates
 
-Container Apps automatically provides managed certificates for custom domains. For the default domain, Azure-managed certificates are used automatically with proper TLS termination at the ingress.
+Container Apps automatically provides Azure-managed certificates for the default .azurecontainerapps.io domain. For custom domains, you need to manually add and bind certificates.
 
 To use a custom domain:
 

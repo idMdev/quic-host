@@ -67,6 +67,7 @@ jobs:
               --image ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
           else
             echo "Creating new container app..."
+            # Note: 00000000-0000-0000-0000-000000000000 is the standard username for ACR token authentication
             az containerapp create \
               --name ${{ env.CONTAINER_APP_NAME }} \
               --resource-group ${{ env.RESOURCE_GROUP }} \
