@@ -1,4 +1,4 @@
-name: Deploy to Azure Container Apps
+name: Deploy to Azure VM
 
 on:
   push:
@@ -7,12 +7,10 @@ on:
   workflow_dispatch:
 
 env:
-  CONTAINER_APP_NAME: quic-host
-  CONTAINER_APP_ENV: quic-host-env
-  RESOURCE_GROUP: quic-host-rg
-  LOCATION: eastus
   REGISTRY_NAME: quichostacr
   IMAGE_NAME: quic-host
+  CONTAINER_NAME: quic-host
+  RESOURCE_GROUP: dns-container-rg
 
 jobs:
   build-and-deploy:
@@ -56,41 +54,56 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       
-      - name: Deploy to Azure Container Apps
-        run: |
-          # Check if container app exists
-          if az containerapp show --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.CONTAINER_APP_NAME }} > /dev/null 2>&1; then
-            echo "Container app exists, updating..."
-            az containerapp update \
-              --name ${{ env.CONTAINER_APP_NAME }} \
+      - name: Deploy to Azure VM
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            # Get VM details
+            VM_NAME=$(az vm list --resource-group ${{ env.RESOURCE_GROUP }} --query "[0].name" -o tsv)
+            VM_IP=$(az vm list-ip-addresses --resource-group ${{ env.RESOURCE_GROUP }} --name $VM_NAME --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
+            
+            echo "Deploying to VM: $VM_NAME ($VM_IP)"
+            
+            # Get ACR login server
+            ACR_LOGIN_SERVER="${{ env.REGISTRY_NAME }}.azurecr.io"
+            
+            # Deploy container on VM (password passed via parameter, used with stdin to avoid exposure)
+            az vm run-command invoke \
               --resource-group ${{ env.RESOURCE_GROUP }} \
-              --image ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          else
-            echo "Creating new container app..."
-            # Note: 00000000-0000-0000-0000-000000000000 is the standard username for ACR token authentication
-            az containerapp create \
-              --name ${{ env.CONTAINER_APP_NAME }} \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --environment ${{ env.CONTAINER_APP_ENV }} \
-              --image ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} \
-              --registry-server ${{ env.REGISTRY_NAME }}.azurecr.io \
-              --registry-username 00000000-0000-0000-0000-000000000000 \
-              --registry-password ${{ env.ACR_PASSWORD }} \
-              --target-port 8443 \
-              --ingress external \
-              --transport http2 \
-              --cpu 1.0 \
-              --memory 2.0Gi \
-              --min-replicas 1 \
-              --max-replicas 1 \
-              --env-vars PORT=8443
-          fi
+              --name $VM_NAME \
+              --command-id RunShellScript \
+              --parameters \
+                "acrServer=$ACR_LOGIN_SERVER" \
+                "imageName=${{ env.IMAGE_NAME }}" \
+                "containerName=${{ env.CONTAINER_NAME }}" \
+                "acrPassword=${{ env.ACR_PASSWORD }}" \
+              --scripts \
+                'set -e' \
+                'echo "Logging into Azure Container Registry..."' \
+                'echo "$acrPassword" | docker login "$acrServer" --username 00000000-0000-0000-0000-000000000000 --password-stdin' \
+                'echo "Pulling latest image..."' \
+                'docker pull "$acrServer/$imageName:latest"' \
+                'echo "Stopping and removing old container if exists..."' \
+                'docker stop "$containerName" 2>/dev/null || true' \
+                'docker rm "$containerName" 2>/dev/null || true' \
+                'echo "Starting new container..."' \
+                'docker run -d --name "$containerName" --restart unless-stopped -p 8443:8443/tcp -p 8443:8443/udp -e PORT=8443 "$acrServer/$imageName:latest"' \
+                'echo "Deployment complete!"' \
+                'docker ps --filter "name=$containerName"'
       
-      - name: Get container app details
-        run: |
-          echo "Container app deployed successfully!"
-          az containerapp show \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name ${{ env.CONTAINER_APP_NAME }} \
-            --query "{FQDN:properties.configuration.ingress.fqdn,ProvisioningState:properties.provisioningState}" \
-            --output table
+      - name: Get deployment status
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            VM_NAME=$(az vm list --resource-group ${{ env.RESOURCE_GROUP }} --query "[0].name" -o tsv)
+            VM_IP=$(az vm list-ip-addresses --resource-group ${{ env.RESOURCE_GROUP }} --name $VM_NAME --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
+            
+            echo "========================================="
+            echo "Deployment Summary"
+            echo "========================================="
+            echo "Container: ${{ env.CONTAINER_NAME }}"
+            echo "Image: ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest"
+            echo "VM: $VM_NAME"
+            echo "Public IP: $VM_IP"
+            echo "QUIC URL: https://$VM_IP:8443"
+            echo "========================================="

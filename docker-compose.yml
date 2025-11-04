@@ -5,7 +5,8 @@ services:
     build: .
     image: quic-host:latest
     ports:
-      - "8443:8443"
+      - "8443:8443/tcp"  # HTTP/2 and HTTP/1.1 fallback
+      - "8443:8443/udp"  # HTTP/3 (QUIC)
     environment:
       - PORT=8443
     restart: unless-stopped

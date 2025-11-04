@@ -1,27 +1,31 @@
 # Azure Deployment Guide
 
-This directory contains infrastructure setup and deployment automation for deploying the QUIC Host service to Azure Container Apps with managed identity integration.
+This directory contains infrastructure setup and deployment automation for deploying the QUIC Host service to Azure VM with managed identity integration.
 
 ## Architecture
 
 - **Azure Container Registry (ACR)**: Stores Docker images
-- **Azure Container Apps**: Runs the containerized service with auto-scaling and ingress
-- **Container Apps Environment**: Managed Kubernetes environment for container apps
+- **Azure VM**: Runs Docker containers (shared with dns-container)
 - **Managed Identity**: System-assigned identity for secure authentication to Azure services
 - **GitHub Actions**: CI/CD pipeline with OIDC authentication
 - **ACR Authentication**: Uses access tokens from the GitHub Actions service principal for image pulls
+
+## Why Azure VM Instead of Container Apps?
+
+Azure Container Apps does not support UDP ingress, which is required for QUIC (HTTP/3) protocol. Therefore, this service is deployed to an Azure VM that supports both TCP and UDP traffic, allowing proper QUIC functionality.
 
 ## Prerequisites
 
 1. Azure CLI installed and configured
 2. GitHub repository with Actions enabled
 3. Azure subscription with appropriate permissions
+4. Azure VM with Docker installed (shared with dns-container repo)
 
 ## Quick Start
 
 ### 1. Setup Azure Infrastructure
 
-Run the setup script to create required Azure resources:
+Run the setup script to create/verify required Azure resources:
 
 ```bash
 cd azure
@@ -29,12 +33,13 @@ cd azure
 ```
 
 This script will:
-- Create a resource group (`quic-host-rg`)
-- Create an Azure Container Registry (`quichostacr`)
-- Create a Container Apps Environment (`quic-host-env`)
+- Check/create resource group (`dns-container-rg`, shared with dns-container)
+- Check/create Azure Container Registry (`quichostacr`)
 - Create an Azure AD App Registration for GitHub Actions
 - Configure federated credentials for OIDC authentication
 - Assign necessary roles (Contributor, AcrPush)
+- Verify VM exists and Docker is installed
+- Create Network Security Group rules for port 8443 (TCP+UDP)
 
 ### 2. Configure GitHub Secrets
 
@@ -54,11 +59,14 @@ The deployment workflow (`.github/workflows/azure-deploy.yml`) will automaticall
 2. Get ACR access token for authentication
 3. Build the Docker image
 4. Push to Azure Container Registry
-5. Deploy to Azure Container Apps (create or update)
+5. SSH into Azure VM using `az vm run-command`
+6. Pull the latest image on the VM
+7. Stop and remove old container
+8. Start new container with UDP+TCP port bindings
 
 **Trigger deployment:**
 - Push to `main` branch
-- Or manually via Actions tab → "Deploy to Azure Container Apps" → "Run workflow"
+- Or manually via Actions tab → "Deploy to Azure VM" → "Run workflow"
 
 ## Configuration
 
@@ -68,23 +76,26 @@ The deployment can be customized by editing `.github/workflows/azure-deploy.yml`
 
 ```yaml
 env:
-  CONTAINER_APP_NAME: quic-host         # Container app name
-  CONTAINER_APP_ENV: quic-host-env      # Container Apps Environment
-  RESOURCE_GROUP: quic-host-rg          # Azure resource group
-  LOCATION: eastus                      # Azure region
   REGISTRY_NAME: quichostacr            # ACR name (must be globally unique)
   IMAGE_NAME: quic-host                 # Docker image name
+  CONTAINER_NAME: quic-host             # Container name on VM
+  RESOURCE_GROUP: dns-container-rg      # Azure resource group (shared)
 ```
 
 ### Container Configuration
 
-The Container Apps deployment includes:
-- **CPU**: 1.0 cores
-- **Memory**: 2.0 GB
-- **Port**: 8443 (HTTPS/QUIC)
-- **Ingress**: External with HTTP/2 transport
-- **Scaling**: 1-1 replicas (can be adjusted for auto-scaling)
-- **Identity**: System-assigned managed identity
+The container deployment includes:
+- **Port**: 8443 (TCP+UDP for HTTPS/HTTP2 and QUIC/HTTP3)
+- **Restart Policy**: unless-stopped
+- **Environment**: PORT=8443
+
+## Shared VM with dns-container
+
+This deployment shares an Azure VM with the `dns-container` repository. Both containers run on the same VM:
+- **dns-container**: Manages DNS services on port 53
+- **quic-host**: Provides QUIC/HTTP3 service on port 8443
+
+Each repository has its own GitHub Actions workflow that can independently update its respective container without affecting the other.
 
 ## Managed Identity Benefits
 
@@ -99,29 +110,36 @@ Using managed identity provides:
 After deployment, the service will be available at:
 
 ```
-https://quic-host.eastus.azurecontainerapps.io
+https://VM_PUBLIC_IP:8443
 ```
 
-Note: Container Apps provides automatic HTTPS on port 443. The internal container port (8443) is mapped to the standard HTTPS port by the ingress controller.
+The VM public IP is displayed in the GitHub Actions workflow output.
 
 ### Testing the Deployment
 
 ```bash
-# Check deployment status
-az containerapp show \
-  --resource-group quic-host-rg \
-  --name quic-host \
-  --query "{FQDN:properties.configuration.ingress.fqdn,State:properties.provisioningState}" \
-  --output table
-
-# View logs
-az containerapp logs show \
-  --resource-group quic-host-rg \
-  --name quic-host \
-  --follow
+# Get VM public IP
+az vm list-ip-addresses \
+  --resource-group dns-container-rg \
+  --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" \
+  --output tsv
 
 # Test HTTPS endpoint
-curl https://quic-host.eastus.azurecontainerapps.io
+curl -k https://VM_IP:8443
+
+# View container logs on VM
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name <VM_NAME> \
+  --command-id RunShellScript \
+  --scripts "docker logs quic-host --tail 50"
+
+# Check container status
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name <VM_NAME> \
+  --command-id RunShellScript \
+  --scripts "docker ps --filter name=quic-host"
 ```
 
 ## Workflow Features
@@ -132,10 +150,10 @@ curl https://quic-host.eastus.azurecontainerapps.io
 - Vendored Go dependencies for faster builds
 
 ### Deployment Strategy
-- Zero-downtime deployments with revision management
-- Automatic health checks and self-healing
-- Traffic splitting for blue-green deployments
-- Built-in auto-scaling based on HTTP requests
+- Zero-downtime deployments (stop old, start new container)
+- Automatic restart on failure with `unless-stopped` policy
+- Container registry pull from ACR
+- VM command execution via Azure CLI
 
 ### Security
 - OIDC authentication (no long-lived secrets)
@@ -143,6 +161,7 @@ curl https://quic-host.eastus.azurecontainerapps.io
 - ACR access tokens for secure image pulls
 - Private container registry
 - TLS 1.2+ for QUIC connections
+- Network Security Groups for port access control
 
 ## Troubleshooting
 
@@ -160,22 +179,49 @@ docker pull quichostacr.azurecr.io/quic-host:latest
 ### Deployment Failures
 
 ```bash
-# Check container app logs
-az containerapp logs show \
-  --resource-group quic-host-rg \
-  --name quic-host \
-  --follow
+# Check container logs on VM
+VM_NAME=$(az vm list --resource-group dns-container-rg --query "[0].name" -o tsv)
 
-# Check revision status
-az containerapp revision list \
-  --resource-group quic-host-rg \
-  --name quic-host \
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "docker logs quic-host --tail 100"
+
+# Check if container is running
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "docker ps -a --filter name=quic-host"
+
+# Restart container manually
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "docker restart quic-host"
+```
+
+### Network Issues
+
+```bash
+# Verify NSG rules
+NSG_NAME=$(az network nsg list --resource-group dns-container-rg --query "[0].name" -o tsv)
+az network nsg rule list \
+  --resource-group dns-container-rg \
+  --nsg-name $NSG_NAME \
   --output table
 
-# Restart container app
-az containerapp revision restart \
-  --resource-group quic-host-rg \
-  --name quic-host
+# Check if port 8443 is open
+az network nsg rule show \
+  --resource-group dns-container-rg \
+  --nsg-name $NSG_NAME \
+  --name AllowQUIC
+
+# Test connectivity
+VM_IP=$(az vm list-ip-addresses --resource-group dns-container-rg --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
+curl -k https://$VM_IP:8443
 ```
 
 ### Authentication Issues
@@ -184,84 +230,79 @@ az containerapp revision restart \
 # Verify service principal roles
 az role assignment list --assignee <CLIENT_ID> --output table
 
-# Test Azure CLI authentication with managed identity
-az login --identity
-az account show
+# Test ACR access
+az acr login --name quichostacr
 ```
 
 ## Custom Certificates
 
-Container Apps automatically provides Azure-managed certificates for the default .azurecontainerapps.io domain. For custom domains, you need to manually add and bind certificates.
+By default, the application generates self-signed certificates. For production use:
 
-To use a custom domain:
+1. Mount certificates into the container on the VM
+2. Update the container run command in `.github/workflows/azure-deploy.yml`:
 
-1. Add custom domain to Container App:
 ```bash
-az containerapp hostname add \
-  --resource-group quic-host-rg \
-  --name quic-host \
-  --hostname yourdomain.com
+docker run -d --name quic-host \
+  --restart unless-stopped \
+  -p 8443:8443/tcp -p 8443:8443/udp \
+  -v /path/to/certs:/certs \
+  -e PORT=8443 \
+  -e TLS_CERT_FILE=/certs/cert.pem \
+  -e TLS_KEY_FILE=/certs/key.pem \
+  $ACR_LOGIN_SERVER/quic-host:latest
 ```
 
-2. Configure DNS CNAME record to point to the Container App FQDN
+## VM Requirements
 
-3. Bind certificate (managed or bring your own):
-```bash
-az containerapp hostname bind \
-  --resource-group quic-host-rg \
-  --name quic-host \
-  --hostname yourdomain.com \
-  --environment quic-host-env \
-  --validation-method CNAME
-```
+The Azure VM should have:
+- **Docker installed**: Required to run containers
+- **Sufficient resources**: At least 1 vCPU and 2GB RAM recommended
+- **Network Security Group**: Port 8443 (TCP+UDP) open for QUIC
+- **Managed identity** (optional): For enhanced security
 
-## Scaling and High Availability
-
-Container Apps provides built-in features for production deployments:
-- **Auto-scaling**: Based on HTTP requests, CPU, memory, or custom metrics
-- **Multiple replicas**: Horizontal scaling with load balancing
-- **Zero-downtime deployments**: Revision-based deployments
-- **Health probes**: Automatic health monitoring and restart
-- **Azure Monitor**: Built-in logging and metrics
-
-Example: Enable auto-scaling based on HTTP requests:
-```bash
-az containerapp update \
-  --name quic-host \
-  --resource-group quic-host-rg \
-  --min-replicas 1 \
-  --max-replicas 10 \
-  --scale-rule-name http-rule \
-  --scale-rule-type http \
-  --scale-rule-http-concurrency 10
-```
+The VM is shared with dns-container, so ensure sufficient resources for both services.
 
 ## Cost Optimization
 
-Current configuration costs approximately:
+Since this uses a shared VM with dns-container:
+- VM costs are shared between both services
 - ACR Basic: ~$5/month
-- Container Apps: ~$50-70/month (with 1 vCPU, 2GB memory, running 24/7)
-- Container Apps Environment: Included in consumption pricing
+- Total cost depends on VM size (typically $20-100/month for small VMs)
 
 To reduce costs:
-- Scale to zero when not in use (set `--min-replicas 0`)
-- Use consumption-based pricing tier
-- Schedule deployments with GitHub Actions schedules
-- Monitor and optimize resource allocation
+- Use smaller VM sizes when possible
+- Stop VM when not needed (development environments)
+- Use Azure Reserved Instances for production
 
 ## Cleanup
 
-To remove all Azure resources:
+To remove quic-host (but keep VM and other resources for dns-container):
 
 ```bash
-az group delete --name quic-host-rg --yes --no-wait
+# Stop and remove container from VM
+VM_NAME=$(az vm list --resource-group dns-container-rg --query "[0].name" -o tsv)
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "docker stop quic-host && docker rm quic-host"
+
+# Delete images from ACR (optional)
+az acr repository delete \
+  --name quichostacr \
+  --repository quic-host \
+  --yes
+
+# To remove app registration (if not shared)
 az ad app delete --id <CLIENT_ID>
 ```
 
+**Warning**: Do not delete the resource group or VM as they are shared with dns-container!
+
 ## Additional Resources
 
-- [Azure Container Apps Documentation](https://docs.microsoft.com/azure/container-apps/)
+- [Azure VM Documentation](https://docs.microsoft.com/azure/virtual-machines/)
 - [Azure Container Registry Documentation](https://docs.microsoft.com/azure/container-registry/)
 - [GitHub Actions Azure Login](https://github.com/Azure/login)
 - [Managed Identity Documentation](https://docs.microsoft.com/azure/active-directory/managed-identities-azure-resources/)
-- [Container Apps Scaling](https://docs.microsoft.com/azure/container-apps/scale-app)
+- [QUIC Protocol](https://quicwg.org/)
