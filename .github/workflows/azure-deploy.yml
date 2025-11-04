@@ -35,8 +35,14 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       
       - name: Login to Azure Container Registry
+        id: acr_login
         run: |
-          az acr login --name ${{ env.REGISTRY_NAME }}
+          # Get ACR credentials using access token
+          ACR_ACCESS_TOKEN=$(az acr login --name ${{ env.REGISTRY_NAME }} --expose-token --output tsv --query accessToken)
+          echo "::add-mask::$ACR_ACCESS_TOKEN"
+          echo "ACR_PASSWORD=$ACR_ACCESS_TOKEN" >> $GITHUB_ENV
+          # Login Docker to ACR using token
+          echo "$ACR_ACCESS_TOKEN" | docker login ${{ env.REGISTRY_NAME }}.azurecr.io --username 00000000-0000-0000-0000-000000000000 --password-stdin
       
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -51,13 +57,24 @@ jobs:
       
       - name: Deploy to Azure Container Instances
         run: |
+          # Check if container exists and delete it for update
+          if az container show --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.CONTAINER_NAME }} &> /dev/null; then
+            echo "Container exists, deleting for update..."
+            az container delete \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --name ${{ env.CONTAINER_NAME }} \
+              --yes
+          fi
+          
+          # Create new container with ACR authentication
           az container create \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --name ${{ env.CONTAINER_NAME }} \
             --image ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} \
             --registry-login-server ${{ env.REGISTRY_NAME }}.azurecr.io \
+            --registry-username 00000000-0000-0000-0000-000000000000 \
+            --registry-password ${{ env.ACR_PASSWORD }} \
             --assign-identity \
-            --acr-identity [system] \
             --dns-name-label quic-host-demo \
             --ports 8443 \
             --protocol TCP \
@@ -65,11 +82,7 @@ jobs:
             --memory 1.5 \
             --environment-variables PORT=8443 \
             --restart-policy OnFailure \
-            --location ${{ env.LOCATION }} || \
-          az container update \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name ${{ env.CONTAINER_NAME }} \
-            --image ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            --location ${{ env.LOCATION }}
       
       - name: Get container instance details
         run: |
