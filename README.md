@@ -10,7 +10,7 @@ A container-based web service that uses QUIC (HTTP/3) to deliver web page conten
 - **Video Streaming**: Includes a sample video file streamed over QUIC
 - **Container-Based**: Easy deployment using Docker
 - **Self-Signed Certificates**: Automatic generation for testing (use proper certificates in production)
-- **Azure Deployment**: CI/CD pipeline with managed identity integration for Azure Container Apps
+- **Azure Deployment**: CI/CD pipeline with managed identity integration for Azure VM (shared with dns-container)
 
 ## Quick Start
 
@@ -195,7 +195,9 @@ Push to `main` branch or manually trigger the workflow:
 
 The deployment runs independently from dns-container and can update the quic-host container without affecting other services on the VM.
 
-For detailed Azure deployment instructions, see [azure/README.md](azure/README.md).
+For detailed Azure deployment instructions, see:
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Comprehensive deployment guide for shared VM
+- [azure/README.md](azure/README.md) - Azure infrastructure setup and configuration
 
 ## Troubleshooting
 
