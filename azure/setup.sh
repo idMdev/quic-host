@@ -6,7 +6,7 @@ set -e
 # Configuration
 RESOURCE_GROUP="dns-container-rg"
 LOCATION="eastus"
-REGISTRY_NAME="quichostacr"
+REGISTRY_NAME="quichostacr1"
 SUBSCRIPTION_ID="${AZURE_SUBSCRIPTION_ID}"
 APP_NAME="quic-host-github-app"
 
