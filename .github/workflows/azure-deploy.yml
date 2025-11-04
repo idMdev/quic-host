@@ -88,6 +88,7 @@ jobs:
                 'echo "Logging into Azure Container Registry..."' \
                 'echo "$acrPassword" | docker login "$acrServer" --username 00000000-0000-0000-0000-000000000000 --password-stdin' \
                 'echo "Creating systemd service unit file..."' \
+                '# Note: Using line-by-line echo to avoid issues with multi-line content in az vm run-command parameters' \
                 'echo "[Unit]" | sudo tee /etc/systemd/system/quic-host.service > /dev/null' \
                 'echo "Description=QUIC Host Container Service" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
                 'echo "After=docker.service" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
