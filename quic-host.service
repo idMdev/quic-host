@@ -22,9 +22,14 @@ Type=simple
 Restart=always
 RestartSec=5
 TimeoutStartSec=0
+# Note: The '-' prefix on ExecStartPre commands means "ignore failures"
+# This allows the service to start even if the container doesn't exist yet
 ExecStartPre=-/usr/bin/docker stop quic-host
 ExecStartPre=-/usr/bin/docker rm quic-host
+# Always pull latest image on service start to ensure we're running the most recent version
 ExecStartPre=/usr/bin/docker pull ${ACR_LOGIN_SERVER}/quic-host:latest
+# Do not use --rm flag as we want the container to persist and be managed by systemd
+# The ExecStartPre commands handle cleanup before starting a new instance
 ExecStart=/usr/bin/docker run --name quic-host \
     -p 8443:8443/tcp \
     -p 8443:8443/udp \
