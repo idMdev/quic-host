@@ -6,9 +6,11 @@ This directory contains infrastructure setup and deployment automation for deplo
 
 - **Azure Container Registry (ACR)**: Stores Docker images
 - **Azure VM**: Runs Docker containers (shared with dns-container)
-- **Managed Identity**: System-assigned identity for secure authentication to Azure services
+- **VM Managed Identity**: System-assigned identity for secure ACR authentication (no passwords/tokens stored on VM)
 - **GitHub Actions**: CI/CD pipeline with OIDC authentication
-- **ACR Authentication**: Uses access tokens from the GitHub Actions service principal for image pulls
+- **ACR Authentication**: 
+  - GitHub Actions uses OIDC tokens for building and pushing images
+  - VM uses its managed identity for pulling images (passwordless authentication)
 
 ## Why Azure VM Instead of Container Apps?
 
@@ -25,8 +27,8 @@ Azure Container Apps does not support UDP ingress, which is required for QUIC (H
 
 ### Files in this Directory
 
-- **setup.sh**: Infrastructure setup script for creating Azure resources
-- **deploy.sh**: Deployment script that runs on the VM to deploy the container
+- **setup.sh**: Infrastructure setup script for creating Azure resources and configuring VM managed identity
+- **deploy.sh**: Deployment script that runs on the VM to deploy the container using managed identity
 - **README.md**: This guide
 
 ### 1. Setup Azure Infrastructure
@@ -43,7 +45,10 @@ This script will:
 - Check/create Azure Container Registry (`quichostacr`)
 - Create an Azure AD App Registration for GitHub Actions
 - Configure federated credentials for OIDC authentication
-- Assign necessary roles (Contributor, AcrPush)
+- Assign necessary roles (Contributor, AcrPush to service principal)
+- **Configure VM with system-assigned managed identity**
+- **Assign AcrPull role to VM's managed identity**
+- **Install Azure CLI on the VM if not present**
 - Verify VM exists and Docker is installed
 - Create Network Security Group rules for port 8443 (TCP+UDP)
 
@@ -62,16 +67,21 @@ Required secrets:
 
 The deployment workflow (`.github/workflows/azure-deploy.yml`) will automatically:
 1. Authenticate to Azure using OIDC
-2. Get ACR access token for authentication
+2. Get ACR access token for authentication (GitHub Actions only)
 3. Build the Docker image
 4. Push to Azure Container Registry
 5. Copy the deployment script (`azure/deploy.sh`) to the VM
 6. Execute the deployment script which:
-   - Logs into ACR and pulls the latest image
+   - **Authenticates to ACR using VM's managed identity (passwordless)**
+   - Pulls the latest image from ACR
    - Creates/updates systemd service for container lifecycle management
+   - Creates ACR login helper script for future service restarts
    - Starts the container with UDP+TCP port bindings
    - Sets up port forwarding from 443 to 8443
-   - Logs all deployment steps to `/var/log/quic-host-deploy.log`
+   - **Logs all deployment steps to multiple log files:**
+     - `/var/log/quic-host-deploy.log` (main log)
+     - `/var/log/quic-host-deploy-detailed.log` (detailed log)
+     - `/var/log/quic-host-acr-login.log` (ACR authentication log)
 
 **Trigger deployment:**
 - Push to `main` branch
@@ -95,8 +105,9 @@ env:
 
 The container deployment includes:
 - **Port**: 8443 (TCP+UDP for HTTPS/HTTP2 and QUIC/HTTP3)
-- **Restart Policy**: unless-stopped
+- **Restart Policy**: always (via systemd)
 - **Environment**: PORT=8443
+- **ACR Authentication**: Managed identity (no passwords/credentials stored)
 
 ## Shared VM with dns-container
 
@@ -108,11 +119,13 @@ Each repository has its own GitHub Actions workflow that can independently updat
 
 ## Managed Identity Benefits
 
-Using managed identity provides:
-- No credentials stored in code or configuration
-- Automatic credential rotation
-- Simplified authentication to Azure services
-- Enhanced security with least-privilege access
+Using VM's managed identity for ACR authentication provides:
+- **No credentials stored on VM**: No passwords, tokens, or secrets
+- **Automatic credential management**: Azure handles token lifecycle
+- **Enhanced security**: Least-privilege access with role-based permissions
+- **Simplified operations**: No manual credential rotation needed
+- **Better audit trail**: All authentication attempts logged
+- **Reduced attack surface**: No secrets to leak or steal
 
 ## Accessing the Deployed Service
 
@@ -143,6 +156,27 @@ az vm run-command invoke \
   --command-id RunShellScript \
   --scripts "docker logs quic-host --tail 50"
 
+# View deployment logs
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name <VM_NAME> \
+  --command-id RunShellScript \
+  --scripts "cat /var/log/quic-host-deploy.log"
+
+# View detailed deployment logs (more verbose)
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name <VM_NAME> \
+  --command-id RunShellScript \
+  --scripts "tail -100 /var/log/quic-host-deploy-detailed.log"
+
+# Check ACR authentication logs
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name <VM_NAME> \
+  --command-id RunShellScript \
+  --scripts "cat /var/log/quic-host-acr-login.log"
+
 # Check container status
 az vm run-command invoke \
   --resource-group dns-container-rg \
@@ -160,19 +194,68 @@ az vm run-command invoke \
 
 ### Deployment Strategy
 - Zero-downtime deployments (stop old, start new container)
-- Automatic restart on failure with `unless-stopped` policy
-- Container registry pull from ACR
+- Automatic restart on failure with systemd service management
+- **Managed identity for ACR authentication (passwordless)**
+- Container registry pull from ACR using VM's identity
 - VM command execution via Azure CLI
+- **Comprehensive logging at multiple levels for easy troubleshooting**
 
 ### Security
 - OIDC authentication (no long-lived secrets)
+- **VM managed identity for ACR access (no credentials on VM)**
 - System-assigned managed identity for Azure services
-- ACR access tokens for secure image pulls
+- **No passwords or tokens stored on VM**
 - Private container registry
 - TLS 1.2+ for QUIC connections
 - Network Security Groups for port access control
 
 ## Troubleshooting
+
+### Deployment Log Files
+
+The deployment creates multiple log files on the VM for troubleshooting:
+
+1. **Main Deployment Log**: `/var/log/quic-host-deploy.log`
+   - High-level deployment progress and status
+   - Quick overview of what happened during deployment
+
+2. **Detailed Deployment Log**: `/var/log/quic-host-deploy-detailed.log`
+   - Verbose output of all commands
+   - Full command outputs and error messages
+   - Best for debugging deployment issues
+
+3. **ACR Login Log**: `/var/log/quic-host-acr-login.log`
+   - ACR authentication attempts using managed identity
+   - Useful for diagnosing ACR access issues
+
+4. **Systemd Service Logs**: Available via `journalctl -u quic-host.service`
+   - Container lifecycle events
+   - Start/stop/restart operations
+   - Managed by systemd
+
+**Viewing logs:**
+```bash
+# Quick check - view main log
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name <VM_NAME> \
+  --command-id RunShellScript \
+  --scripts "cat /var/log/quic-host-deploy.log"
+
+# Detailed troubleshooting - view detailed log
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name <VM_NAME> \
+  --command-id RunShellScript \
+  --scripts "cat /var/log/quic-host-deploy-detailed.log"
+
+# Check ACR authentication
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name <VM_NAME> \
+  --command-id RunShellScript \
+  --scripts "cat /var/log/quic-host-acr-login.log"
+```
 
 ### Build Failures
 
@@ -185,12 +268,74 @@ az acr login --name quichostacr
 docker pull quichostacr.azurecr.io/quic-host:latest
 ```
 
+### Managed Identity Issues
+
+If deployment fails with ACR authentication errors:
+
+```bash
+# 1. Verify VM has managed identity assigned
+az vm identity show \
+  --resource-group dns-container-rg \
+  --name <VM_NAME>
+
+# Should show a principalId (if empty, managed identity is not assigned)
+
+# 2. Check if VM's identity has AcrPull role
+VM_IDENTITY=$(az vm identity show --resource-group dns-container-rg --name <VM_NAME> --query principalId -o tsv)
+ACR_ID=$(az acr show --name quichostacr --resource-group dns-container-rg --query id -o tsv)
+
+az role assignment list \
+  --assignee $VM_IDENTITY \
+  --scope $ACR_ID
+
+# Should show AcrPull role assignment
+
+# 3. If missing, re-run setup script
+cd azure
+./setup.sh
+
+# 4. Test ACR login from VM
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name <VM_NAME> \
+  --command-id RunShellScript \
+  --scripts "az acr login --name quichostacr"
+
+# 5. Check Azure CLI is installed on VM
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name <VM_NAME> \
+  --command-id RunShellScript \
+  --scripts "az version"
+```
+
+**Common managed identity issues:**
+- **"az: command not found"**: Azure CLI not installed on VM → Run `setup.sh`
+- **"Failed to connect to MSI"**: VM doesn't have managed identity → Run `setup.sh`
+- **"Authorization failed"**: Missing AcrPull role → Run `setup.sh`
+- **"Token expired"**: Normal - `az acr login` automatically refreshes tokens
+
 ### Deployment Failures
 
 ```bash
-# Check container logs on VM
+# Check deployment logs on VM
 VM_NAME=$(az vm list --resource-group dns-container-rg --query "[0].name" -o tsv)
 
+# Main deployment log
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "cat /var/log/quic-host-deploy.log"
+
+# Detailed deployment log
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "tail -200 /var/log/quic-host-deploy-detailed.log"
+
+# Container logs
 az vm run-command invoke \
   --resource-group dns-container-rg \
   --name $VM_NAME \
@@ -204,12 +349,12 @@ az vm run-command invoke \
   --command-id RunShellScript \
   --scripts "docker ps -a --filter name=quic-host"
 
-# Restart container manually
+# Restart service manually
 az vm run-command invoke \
   --resource-group dns-container-rg \
   --name $VM_NAME \
   --command-id RunShellScript \
-  --scripts "docker restart quic-host"
+  --scripts "sudo systemctl restart quic-host.service"
 ```
 
 ### Network Issues

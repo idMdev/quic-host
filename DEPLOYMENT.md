@@ -80,20 +80,29 @@ Via GitHub UI:
 
 ### What Happens During Deployment
 
-The deployment uses a systemd service unit to manage the container lifecycle:
+The deployment uses VM's managed identity for secure ACR authentication and a systemd service unit to manage the container lifecycle:
 
 ```bash
 # On the Azure VM, the workflow:
-# 1. Creates/updates the systemd service unit file at /etc/systemd/system/quic-host.service
-# 2. Reloads systemd daemon
-# 3. Enables the service (auto-start on boot)
-# 4. Restarts the service (pulls latest image and starts container)
+# 1. Copies deployment script to VM via az vm run-command
+# 2. Script authenticates to ACR using VM's managed identity (no passwords needed)
+# 3. Creates/updates the systemd service unit file at /etc/systemd/system/quic-host.service
+# 4. Creates ACR login helper script at /usr/local/bin/acr-login-helper.sh
+# 5. Reloads systemd daemon
+# 6. Enables the service (auto-start on boot)
+# 7. Restarts the service (pulls latest image and starts container)
 
 # The systemd service handles:
 # - Automatic container start on VM boot
 # - Container restart on failure
+# - ACR authentication using managed identity before pulling
 # - Pulling latest image from ACR
 # - Proper container lifecycle management
+
+# Deployment creates multiple log files for troubleshooting:
+# - /var/log/quic-host-deploy.log (main deployment log)
+# - /var/log/quic-host-deploy-detailed.log (detailed deployment log)
+# - /var/log/quic-host-acr-login.log (ACR authentication log)
 ```
 
 **Service Unit Configuration:**
@@ -101,7 +110,8 @@ The deployment uses a systemd service unit to manage the container lifecycle:
 - **Restart**: always (auto-restart on failure)
 - **Dependencies**: Requires and starts after Docker service
 - **Ports**: 8443/tcp and 8443/udp
-- **Image**: Automatically pulls latest from ACR on service start
+- **Image**: Automatically pulls latest from ACR on service start using managed identity
+- **Authentication**: Uses VM's managed identity (no passwords or credentials stored)
 
 ## Port Allocation
 
@@ -181,11 +191,33 @@ az vm run-command invoke \
 ### View Container Logs
 
 ```bash
+# View container logs
 az vm run-command invoke \
   --resource-group dns-container-rg \
   --name $VM_NAME \
   --command-id RunShellScript \
   --scripts "docker logs quic-host --tail 50"
+
+# View main deployment log
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "cat /var/log/quic-host-deploy.log"
+
+# View detailed deployment log (more verbose)
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "cat /var/log/quic-host-deploy-detailed.log"
+
+# View ACR authentication log
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "cat /var/log/quic-host-acr-login.log"
 ```
 
 ### Test Service Endpoint
@@ -280,6 +312,24 @@ env:
 ```
 
 ## Maintenance
+
+### Viewing Service Logs
+
+```bash
+# View systemd service logs
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "sudo journalctl -u quic-host.service -n 100 --no-pager"
+
+# View all deployment-related logs
+az vm run-command invoke \
+  --resource-group dns-container-rg \
+  --name $VM_NAME \
+  --command-id RunShellScript \
+  --scripts "echo '=== Main Log ===' && cat /var/log/quic-host-deploy.log && echo '' && echo '=== ACR Login ===' && cat /var/log/quic-host-acr-login.log"
+```
 
 ### Viewing Both Containers
 
