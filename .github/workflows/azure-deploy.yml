@@ -30,6 +30,13 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       
+      - name: Compute ACR shortname
+        id:  compute_acr_shortname
+        run: |
+          echo "ACR_SHORTNAME=${ACR_SERVER%%.*}" >> "$GITHUB_ENV"
+        env:
+          ACR_SERVER: ${{ env.ACR_SERVER }}
+
       - name: Login to Azure Container Registry
         id: acr_login
         run: |
