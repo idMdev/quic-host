@@ -76,7 +76,7 @@ jobs:
             echo ""
             
             # Get ACR login server
-            echo "ACR Server: ${{ env.ACR_SERVER" }}
+            echo "ACR Server: ${{ env.ACR_SERVER }}"
             echo ""
             
             # Read the deployment script
