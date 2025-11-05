@@ -33,7 +33,8 @@ jobs:
       - name: Compute ACR shortname
         id:  compute_acr_shortname
         run: |
-          echo "ACR_SHORTNAME=${ACR_SERVER_TMP%%.*}" >> "$GITHUB_ENV"
+          ACR_SHORTNAME="${ACR_SERVER_TMP%%.*}"
+          echo "ACR_SHORTNAME=${ACR_SHORTNAME} // "$GITHUB_ENV"
           echo "$ACR_SHORTNAME"
         env:
           ACR_SERVER_TMP: ${{ env.ACR_SERVER }}
@@ -45,9 +46,9 @@ jobs:
           echo "Logging into Azure Container Registry"
           echo "========================================="
           echo "Registry: ${{ env.ACR_SERVER }}"
-          echo "ACR shortname: $ACR_SHORTNAME"
+          echo "ACR shortname: ${{ env.ACR_SHORTNAME }}"
           # Get ACR credentials using access token
-          ACR_ACCESS_TOKEN=$(az acr login --name $ACR_SHORTNAME --expose-token --output tsv --query accessToken)
+          ACR_ACCESS_TOKEN=$(az acr login --name ${{ env.ACR_SHORTNAME }} --expose-token --output tsv --query accessToken)
           echo "::add-mask::$ACR_ACCESS_TOKEN"
           
           # Login Docker to ACR using token
