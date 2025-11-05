@@ -11,15 +11,14 @@ CONTAINER_NAME="${3:-$containerName}"
 ACR_PASSWORD="${4:-$acrPassword}"
 
 LOGFILE="/var/log/quic-host-deploy.log"
-TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
 
 echo "==========================================="
-echo "$TIMESTAMP - Starting deployment"
+echo "$(date "+%Y-%m-%d %H:%M:%S") - Starting deployment"
 echo "==========================================="
 echo "" | sudo tee -a "$LOGFILE"
 
-log_step() { echo "[$TIMESTAMP] $1" | sudo tee -a "$LOGFILE"; echo "$1"; }
-log_error() { echo "[$TIMESTAMP] ERROR: $1" | sudo tee -a "$LOGFILE" >&2; echo "ERROR: $1" >&2; }
+log_step() { echo "[$(date "+%Y-%m-%d %H:%M:%S")] $1" | sudo tee -a "$LOGFILE"; echo "$1"; }
+log_error() { echo "[$(date "+%Y-%m-%d %H:%M:%S")] ERROR: $1" | sudo tee -a "$LOGFILE" >&2; echo "ERROR: $1" >&2; }
 
 log_step "Ensuring Docker service is enabled on boot..."
 sudo systemctl enable docker 2>&1 | sudo tee -a "$LOGFILE" || log_error "Failed to enable docker"

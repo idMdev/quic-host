@@ -6,7 +6,6 @@ on:
       - main
     paths-ignore:
       - 'azure/setup.sh'
-      - 'azure/deploy.sh'
       - '*.md'
   workflow_dispatch:
 
