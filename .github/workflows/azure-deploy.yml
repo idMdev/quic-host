@@ -124,10 +124,8 @@ jobs:
               echo "Check the detailed logs on the VM:"
               echo "  - /var/log/quic-host-deploy.log"
               echo "  - /var/log/quic-host-deploy-detailed.log"
+              echo "$DEPLOY_OUTPUT"
             fi
-            
-            echo ""
-            echo "✅ VERIFICATION PASSED: Container is running!"
       
       - name: Test Container Response
         uses: azure/CLI@v1
