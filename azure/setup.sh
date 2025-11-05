@@ -254,12 +254,18 @@ else
     
     if [ -z "$AZ_CLI_CHECK" ]; then
         echo "Installing Azure CLI on VM (this may take a few minutes)..."
+        echo "Note: Using Microsoft's official installation script from packages.microsoft.com"
         az vm run-command invoke \
             --resource-group "$RESOURCE_GROUP" \
             --name "$VM_NAME" \
             --command-id RunShellScript \
             --scripts \
-                "curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash" \
+                "# Install Azure CLI using package manager (more secure than piped curl)" \
+                "curl -sL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null" \
+                "AZ_REPO=\$(lsb_release -cs)" \
+                "echo \"deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ \$AZ_REPO main\" | sudo tee /etc/apt/sources.list.d/azure-cli.list" \
+                "sudo apt-get update" \
+                "sudo apt-get install -y azure-cli" \
             --query "value[0].message" -o tsv
         echo "Azure CLI installed on VM"
     else

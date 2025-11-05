@@ -125,14 +125,6 @@ jobs:
               echo "  - /var/log/quic-host-deploy.log"
               echo "  - /var/log/quic-host-deploy-detailed.log"
             fi
-      
-                --resource-group ${{ env.RESOURCE_GROUP }} \
-                --name $VM_NAME \
-                --command-id RunShellScript \
-                --scripts 'cat /var/log/quic-host-deploy.log 2>/dev/null || echo "Log file not found"' \
-                --query "value[0].message" -o tsv
-              exit 1
-            fi
             
             echo ""
             echo "✅ VERIFICATION PASSED: Container is running!"

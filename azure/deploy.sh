@@ -82,7 +82,7 @@ if az acr login --name "${ACR_SERVER%%.*}" 2>&1 | sudo tee -a "$DETAILED_LOGFILE
 else
     log_error "Failed to login to ACR using managed identity"
     log_detail "Checking if VM has managed identity assigned..."
-    IDENTITY_CHECK=$(curl -s -H Metadata:true "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/" 2>&1 || echo "FAILED")
+    IDENTITY_CHECK=$(curl -s -H Metadata:true "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2021-02-01&resource=https://management.azure.com/" 2>&1 || echo "FAILED")
     if echo "$IDENTITY_CHECK" | grep -q "access_token"; then
         log_detail "VM has managed identity but ACR login failed. Check role assignments."
     else
@@ -216,8 +216,11 @@ fi
 log_step "Verifying Docker images..."
 if docker images | grep quic-host 2>&1 | sudo tee -a "$DETAILED_LOGFILE"; then
     log_detail "Docker images found"
+    IMAGE_COUNT=$(docker images --filter "reference=*quic-host*" --format "{{.Repository}}" | wc -l)
+    log_detail "Number of quic-host images: $IMAGE_COUNT"
 else
-    log_error "No quic-host images found"
+    log_error "No quic-host images found - this is unexpected after pulling"
+    log_detail "This may indicate a problem with the image pull step"
 fi
 
 log_step "Verifying container is running..."
