@@ -33,11 +33,10 @@ jobs:
       - name: Compute ACR shortname
         id:  compute_acr_shortname
         run: |
-          echo "ACR_SHORTNAME=${ACR_SERVER%%.*}" >> "$GITHUB_ENV"
+          echo "ACR_SHORTNAME=${ACR_SERVER_TMP%%.*}" >> "$GITHUB_ENV"
           echo "$ACR_SHORTNAME"
-          echo "$GITHUB_ENV"
         env:
-          ACR_SERVER: ${{ env.ACR_SERVER }}
+          ACR_SERVER_TMP: ${{ env.ACR_SERVER }}
 
       - name: Login to Azure Container Registry
         id: acr_login
