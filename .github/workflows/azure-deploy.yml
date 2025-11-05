@@ -34,7 +34,7 @@ jobs:
         id:  compute_acr_shortname
         run: |
           ACR_SHORTNAME="${ACR_SERVER_TMP%%.*}"
-          echo "ACR_SHORTNAME=${ACR_SHORTNAME} // "$GITHUB_ENV"
+          echo "ACR_SHORTNAME=${ACR_SHORTNAME} >> "$GITHUB_ENV"
           echo "$ACR_SHORTNAME"
         env:
           ACR_SERVER_TMP: ${{ env.ACR_SERVER }}
