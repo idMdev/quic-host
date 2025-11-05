@@ -44,11 +44,6 @@ jobs:
           echo "Logging into Azure Container Registry"
           echo "========================================="
           echo "Registry: ${{ env.ACR_SERVER }}"
-
-          # Extract server name from registry fqdn
-
-          # e.g., ACR_SERVER = myregistry.azurecr.io  ->  ACR_SHORTNAME = myregistry
-          ACR_SHORTNAME: ${{ fromJSON(format('["{0}"]', replace(env.ACR_SERVER, '.', '","')))[0] }}
           
           # Get ACR credentials using access token
           ACR_ACCESS_TOKEN=$(az acr login --name ${{ env.ACR_SHORTNAME }} --expose-token --output tsv --query accessToken)
