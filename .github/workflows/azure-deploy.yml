@@ -34,7 +34,7 @@ jobs:
       - name: Login to Azure Container Registry
         id: acr_login
         env:
-          ACR_URL: ${{ env.ACR_SERVER }}.${{ ACR_FQDN }}
+          ACR_URL: ${{ env.ACR_SERVER }}.${{ env.ACR_FQDN }}
         run: |
           echo "========================================="
           echo "Logging into Azure Container Registry"
