@@ -71,7 +71,9 @@ jobs:
             echo "========================================="
             echo "Starting Deployment to Azure VM"
             echo "========================================="
-            
+            echo "============SCRIPT======================="
+            echo ${DEPLOY_SCRIPT}
+            echo "========================================="
             # Get VM details
             echo "Getting VM details..."
             VM_NAME=$(az vm list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].name" -o tsv)
