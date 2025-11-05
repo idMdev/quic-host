@@ -154,7 +154,7 @@ ExecStartPre=-/usr/bin/docker rm ${CONTAINER_NAME}
 # Pull latest image from ACR
 ExecStartPre=/usr/bin/docker pull $ACR_SERVER/${IMAGE_NAME}:latest
 # Start the container
-ExecStart=/usr/bin/docker run --name ${CONTAINER_NAME} -p 8443:8443/tcp -p 8443:8443/udp -e PORT=8443 $ACR_SERVER/${IMAGE_NAME}:latest
+ExecStart=/usr/bin/docker run --name ${CONTAINER_NAME} -p 443:8443/tcp -p 443:8443/udp -e PORT=8443 $ACR_SERVER/${IMAGE_NAME}:latest
 ExecStop=/usr/bin/docker stop ${CONTAINER_NAME}
 
 [Install]
