@@ -93,7 +93,7 @@ jobs:
               --name $VM_NAME \
               --command-id RunShellScript \
               --parameters \
-                "acrServer=${{ env.ACR_SERVER" }} \
+                "acrServer=${{ env.ACR_SERVER }}" \
                 "imageName=${{ env.IMAGE_NAME }}" \
                 "containerName=${{ env.CONTAINER_NAME }}" \
                 "deployScript=$DEPLOY_SCRIPT" \
