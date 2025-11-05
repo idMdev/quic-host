@@ -39,7 +39,7 @@ jobs:
           echo "========================================="
           echo "Logging into Azure Container Registry"
           echo "========================================="
-          echo "Registry: ${$ACR_URL}"
+          echo "Registry: ${ACR_URL}"
           # Get ACR credentials using access token
           ACR_ACCESS_TOKEN=$(az acr login --name ${{ env.ACR_SERVER }} --expose-token --output tsv --query accessToken)
           echo "::add-mask::$ACR_ACCESS_TOKEN"
