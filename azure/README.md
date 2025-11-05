@@ -23,6 +23,12 @@ Azure Container Apps does not support UDP ingress, which is required for QUIC (H
 
 ## Quick Start
 
+### Files in this Directory
+
+- **setup.sh**: Infrastructure setup script for creating Azure resources
+- **deploy.sh**: Deployment script that runs on the VM to deploy the container
+- **README.md**: This guide
+
 ### 1. Setup Azure Infrastructure
 
 Run the setup script to create/verify required Azure resources:
@@ -59,10 +65,13 @@ The deployment workflow (`.github/workflows/azure-deploy.yml`) will automaticall
 2. Get ACR access token for authentication
 3. Build the Docker image
 4. Push to Azure Container Registry
-5. SSH into Azure VM using `az vm run-command`
-6. Pull the latest image on the VM
-7. Stop and remove old container
-8. Start new container with UDP+TCP port bindings
+5. Copy the deployment script (`azure/deploy.sh`) to the VM
+6. Execute the deployment script which:
+   - Logs into ACR and pulls the latest image
+   - Creates/updates systemd service for container lifecycle management
+   - Starts the container with UDP+TCP port bindings
+   - Sets up port forwarding from 443 to 8443
+   - Logs all deployment steps to `/var/log/quic-host-deploy.log`
 
 **Trigger deployment:**
 - Push to `main` branch

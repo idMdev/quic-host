@@ -144,6 +144,7 @@ quic-host/
 │   └── sample-video.mp4  # Sample video file
 ├── azure/            # Azure deployment files
 │   ├── setup.sh      # Infrastructure setup script
+│   ├── deploy.sh     # VM deployment script
 │   └── README.md     # Azure deployment guide
 ├── .github/
 │   └── workflows/
