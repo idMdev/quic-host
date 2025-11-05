@@ -201,6 +201,71 @@ else
         echo "WARNING: Docker may not be installed on VM. Please ensure Docker is installed."
     fi
     
+    # Configure VM with system-assigned managed identity
+    echo ""
+    echo "Configuring VM with system-assigned managed identity..."
+    VM_IDENTITY=$(az vm identity show --resource-group "$RESOURCE_GROUP" --name "$VM_NAME" --query principalId -o tsv 2>/dev/null)
+    
+    if [ -z "$VM_IDENTITY" ]; then
+        echo "Assigning system-assigned managed identity to VM..."
+        VM_IDENTITY=$(az vm identity assign \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$VM_NAME" \
+            --query principalId -o tsv)
+        echo "Managed identity assigned: $VM_IDENTITY"
+        
+        # Wait for identity to propagate
+        echo "Waiting for identity to propagate (15 seconds)..."
+        sleep 15
+    else
+        echo "VM already has managed identity: $VM_IDENTITY"
+    fi
+    
+    # Assign AcrPull role to VM's managed identity
+    echo ""
+    echo "Assigning AcrPull role to VM's managed identity..."
+    ACR_ID=$(az acr show --name "$REGISTRY_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv)
+    VM_ACR_PULL_ASSIGNED=$(az role assignment list --assignee "$VM_IDENTITY" --scope "$ACR_ID" --role "AcrPull" --query "[0].roleDefinitionName" -o tsv)
+    
+    if [ -z "$VM_ACR_PULL_ASSIGNED" ]; then
+        az role assignment create \
+            --assignee "$VM_IDENTITY" \
+            --role "AcrPull" \
+            --scope "$ACR_ID" \
+            --output table
+        echo "AcrPull role assigned to VM's managed identity"
+        
+        # Wait for role assignment to propagate
+        echo "Waiting for role assignment to propagate (15 seconds)..."
+        sleep 15
+    else
+        echo "AcrPull role already assigned to VM's managed identity"
+    fi
+    
+    # Install Azure CLI on VM if not present
+    echo ""
+    echo "Ensuring Azure CLI is installed on VM..."
+    AZ_CLI_CHECK=$(az vm run-command invoke \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$VM_NAME" \
+        --command-id RunShellScript \
+        --scripts "az version 2>/dev/null || echo 'not installed'" \
+        --query "value[0].message" -o tsv 2>/dev/null | grep -o "azure-cli" || echo "")
+    
+    if [ -z "$AZ_CLI_CHECK" ]; then
+        echo "Installing Azure CLI on VM (this may take a few minutes)..."
+        az vm run-command invoke \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$VM_NAME" \
+            --command-id RunShellScript \
+            --scripts \
+                "curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash" \
+            --query "value[0].message" -o tsv
+        echo "Azure CLI installed on VM"
+    else
+        echo "Azure CLI is already installed on VM"
+    fi
+    
     # Check NSG rules for ports 443 and 8443
     echo ""
     echo "Checking Network Security Group rules for ports 443 and 8443..."

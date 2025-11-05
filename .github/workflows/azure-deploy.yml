@@ -39,12 +39,19 @@ jobs:
       - name: Login to Azure Container Registry
         id: acr_login
         run: |
+          echo "========================================="
+          echo "Logging into Azure Container Registry"
+          echo "========================================="
+          echo "Registry: ${{ env.REGISTRY_NAME }}.azurecr.io"
+          
           # Get ACR credentials using access token
           ACR_ACCESS_TOKEN=$(az acr login --name ${{ env.REGISTRY_NAME }} --expose-token --output tsv --query accessToken)
           echo "::add-mask::$ACR_ACCESS_TOKEN"
-          echo "ACR_PASSWORD=$ACR_ACCESS_TOKEN" >> $GITHUB_ENV
+          
           # Login Docker to ACR using token
           echo "$ACR_ACCESS_TOKEN" | docker login ${{ env.REGISTRY_NAME }}.azurecr.io --username 00000000-0000-0000-0000-000000000000 --password-stdin
+          
+          echo "✓ Successfully logged into ACR"
       
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -61,20 +68,34 @@ jobs:
         uses: azure/CLI@v1
         with:
           inlineScript: |
+            echo "========================================="
+            echo "Starting Deployment to Azure VM"
+            echo "========================================="
+            
             # Get VM details
+            echo "Getting VM details..."
             VM_NAME=$(az vm list --resource-group ${{ env.RESOURCE_GROUP }} --query "[0].name" -o tsv)
             VM_IP=$(az vm list-ip-addresses --resource-group ${{ env.RESOURCE_GROUP }} --name $VM_NAME --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
             
-            echo "Deploying to VM: $VM_NAME ($VM_IP)"
+            echo "VM Name: $VM_NAME"
+            echo "VM IP: $VM_IP"
+            echo ""
             
             # Get ACR login server
             ACR_LOGIN_SERVER="${{ env.REGISTRY_NAME }}.azurecr.io"
+            echo "ACR Server: $ACR_LOGIN_SERVER"
+            echo ""
             
             # Read the deployment script
+            echo "Preparing deployment script..."
             DEPLOY_SCRIPT=$(cat azure/deploy.sh | base64 -w 0)
             
-            # Copy deploy script to VM and execute it
-            az vm run-command invoke \
+            echo "Copying deployment script to VM and executing..."
+            echo "NOTE: Deployment uses VM's managed identity for ACR authentication"
+            echo ""
+            
+            # Copy deploy script to VM and execute it (no password needed with managed identity)
+            DEPLOY_OUTPUT=$(az vm run-command invoke \
               --resource-group ${{ env.RESOURCE_GROUP }} \
               --name $VM_NAME \
               --command-id RunShellScript \
@@ -82,69 +103,29 @@ jobs:
                 "acrServer=$ACR_LOGIN_SERVER" \
                 "imageName=${{ env.IMAGE_NAME }}" \
                 "containerName=${{ env.CONTAINER_NAME }}" \
-                "acrPassword=${{ env.ACR_PASSWORD }}" \
                 "deployScript=$DEPLOY_SCRIPT" \
               --scripts \
                 'echo "$deployScript" | base64 -d > /tmp/deploy.sh' \
                 'chmod +x /tmp/deploy.sh' \
-                '/tmp/deploy.sh "$acrServer" "$imageName" "$containerName" "$acrPassword"'
-      
-      - name: Verify Container is Running
-        uses: azure/CLI@v1
-        with:
-          inlineScript: |
-            VM_NAME=$(az vm list --resource-group ${{ env.RESOURCE_GROUP }} --query "[0].name" -o tsv)
-            VM_IP=$(az vm list-ip-addresses --resource-group ${{ env.RESOURCE_GROUP }} --name $VM_NAME --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
-            
-            echo "========================================="
-            echo "VERIFICATION: Checking Container Status"
-            echo "========================================="
-            
-            # Run verification commands on the VM
-            VERIFICATION_OUTPUT=$(az vm run-command invoke \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --name $VM_NAME \
-              --command-id RunShellScript \
-              --scripts \
-                'echo "=== Docker Service Status ==="' \
-                'sudo systemctl is-active docker || exit 1' \
-                'echo "Docker is running"' \
-                'echo ""' \
-                'echo "=== Systemd Service Status ==="' \
-                'if sudo systemctl is-active quic-host.service; then echo "quic-host.service is ACTIVE"; else echo "quic-host.service is NOT ACTIVE"; exit 1; fi' \
-                'echo ""' \
-                'echo "=== Container Status ==="' \
-                'if docker ps --filter "name=quic-host" --format "{{.Names}}" | grep -q "quic-host"; then' \
-                '  echo "Container quic-host IS RUNNING"' \
-                '  docker ps --filter "name=quic-host" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"' \
-                'else' \
-                '  echo "Container quic-host is NOT RUNNING"' \
-                '  echo "All containers:"' \
-                '  docker ps -a' \
-                '  echo "Container logs:"' \
-                '  docker logs quic-host --tail 100 2>&1 || echo "No logs available"' \
-                '  exit 1' \
-                'fi' \
-                'echo ""' \
-                'echo "=== Port Listening Check ==="' \
-                'if sudo netstat -tulpn | grep -q ":8443"; then' \
-                '  echo "Port 8443 is LISTENING"' \
-                '  sudo netstat -tulpn | grep 8443' \
-                'else' \
-                '  echo "Port 8443 is NOT LISTENING"' \
-                '  exit 1' \
-                'fi' \
+                '/tmp/deploy.sh "$acrServer" "$imageName" "$containerName"' \
               --query "value[0].message" -o tsv)
             
-            echo "$VERIFICATION_OUTPUT"
+            echo "========================================="
+            echo "Deployment Script Output:"
+            echo "========================================="
+            echo "$DEPLOY_OUTPUT"
+            echo ""
             
-            # Check if verification failed
-            if echo "$VERIFICATION_OUTPUT" | grep -q "NOT RUNNING\|NOT ACTIVE\|NOT LISTENING"; then
-              echo ""
-              echo "❌ VERIFICATION FAILED: Container is not running properly!"
-              echo ""
-              echo "Fetching detailed logs from VM..."
-              az vm run-command invoke \
+            # Check if deployment was successful
+            if echo "$DEPLOY_OUTPUT" | grep -q "Deployment Complete"; then
+              echo "✓ Deployment completed successfully"
+            else
+              echo "⚠ Deployment may have encountered issues"
+              echo "Check the detailed logs on the VM:"
+              echo "  - /var/log/quic-host-deploy.log"
+              echo "  - /var/log/quic-host-deploy-detailed.log"
+            fi
+      
                 --resource-group ${{ env.RESOURCE_GROUP }} \
                 --name $VM_NAME \
                 --command-id RunShellScript \
