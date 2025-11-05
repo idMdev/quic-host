@@ -6,6 +6,7 @@ on:
       - main
     paths-ignore:
       - 'azure/setup.sh'
+      - 'azure/deploy.sh'
       - '*.md'
   workflow_dispatch:
 
@@ -70,7 +71,10 @@ jobs:
             # Get ACR login server
             ACR_LOGIN_SERVER="${{ env.REGISTRY_NAME }}.azurecr.io"
             
-            # Deploy container on VM using systemd service with comprehensive logging
+            # Read the deployment script
+            DEPLOY_SCRIPT=$(cat azure/deploy.sh | base64 -w 0)
+            
+            # Copy deploy script to VM and execute it
             az vm run-command invoke \
               --resource-group ${{ env.RESOURCE_GROUP }} \
               --name $VM_NAME \
@@ -80,83 +84,11 @@ jobs:
                 "imageName=${{ env.IMAGE_NAME }}" \
                 "containerName=${{ env.CONTAINER_NAME }}" \
                 "acrPassword=${{ env.ACR_PASSWORD }}" \
+                "deployScript=$DEPLOY_SCRIPT" \
               --scripts \
-                'set -e' \
-                'LOGFILE="/var/log/quic-host-deploy.log"' \
-                'TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")' \
-                'echo "===========================================\n$TIMESTAMP - Starting deployment\n===========================================" | sudo tee -a "$LOGFILE"' \
-                'log_step() { echo "[$TIMESTAMP] $1" | sudo tee -a "$LOGFILE"; echo "$1"; }' \
-                'log_error() { echo "[$TIMESTAMP] ERROR: $1" | sudo tee -a "$LOGFILE" >&2; echo "ERROR: $1" >&2; }' \
-                'log_step "Ensuring Docker service is enabled on boot..."' \
-                'sudo systemctl enable docker 2>&1 | sudo tee -a "$LOGFILE" || log_error "Failed to enable docker"' \
-                'sudo systemctl start docker 2>&1 | sudo tee -a "$LOGFILE" || log_error "Failed to start docker"' \
-                'log_step "Docker service status:"' \
-                'sudo systemctl status docker --no-pager 2>&1 | sudo tee -a "$LOGFILE" || true' \
-                'log_step "Logging into Azure Container Registry..."' \
-                'echo "$acrPassword" | docker login "$acrServer" --username 00000000-0000-0000-0000-000000000000 --password-stdin 2>&1 | sudo tee -a "$LOGFILE" || log_error "Failed to login to ACR"' \
-                'log_step "Creating systemd service unit file..."' \
-                'echo "[Unit]" | sudo tee /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "Description=QUIC Host Container Service" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "After=docker.service" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "Requires=docker.service" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "[Service]" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "Type=simple" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "Restart=always" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "RestartSec=5" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "TimeoutStartSec=0" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "StandardOutput=journal" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "StandardError=journal" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "ExecStartPre=-/usr/bin/docker stop quic-host" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "ExecStartPre=-/usr/bin/docker rm quic-host" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "ExecStartPre=/usr/bin/docker pull $acrServer/quic-host:latest" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "ExecStart=/usr/bin/docker run --name quic-host -p 8443:8443/tcp -p 8443:8443/udp -e PORT=8443 $acrServer/quic-host:latest" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "ExecStop=/usr/bin/docker stop quic-host" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "[Install]" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'echo "WantedBy=multi-user.target" | sudo tee -a /etc/systemd/system/quic-host.service > /dev/null' \
-                'log_step "Service file created. Contents:"' \
-                'cat /etc/systemd/system/quic-host.service 2>&1 | sudo tee -a "$LOGFILE"' \
-                'log_step "Reloading systemd daemon..."' \
-                'sudo systemctl daemon-reload 2>&1 | sudo tee -a "$LOGFILE" || log_error "Failed to reload systemd"' \
-                'log_step "Enabling quic-host service..."' \
-                'sudo systemctl enable quic-host.service 2>&1 | sudo tee -a "$LOGFILE" || log_error "Failed to enable service"' \
-                'log_step "Stopping old service if running..."' \
-                'sudo systemctl stop quic-host.service 2>&1 | sudo tee -a "$LOGFILE" || true' \
-                'log_step "Starting quic-host service..."' \
-                'sudo systemctl start quic-host.service 2>&1 | sudo tee -a "$LOGFILE" || log_error "Failed to start service"' \
-                'log_step "Waiting 15 seconds for service to fully start..."' \
-                'sleep 15' \
-                'log_step "Checking service status..."' \
-                'sudo systemctl status quic-host.service --no-pager 2>&1 | sudo tee -a "$LOGFILE" || log_error "Service status check failed"' \
-                'log_step "Checking if service is active..."' \
-                'if sudo systemctl is-active quic-host.service 2>&1 | sudo tee -a "$LOGFILE"; then log_step "Service is ACTIVE"; else log_error "Service is NOT ACTIVE"; fi' \
-                'log_step "Verifying Docker images..."' \
-                'docker images | grep quic-host 2>&1 | sudo tee -a "$LOGFILE" || log_error "No quic-host images found"' \
-                'log_step "Verifying container is running..."' \
-                'docker ps --filter "name=$containerName" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>&1 | sudo tee -a "$LOGFILE"' \
-                'if docker ps --filter "name=$containerName" --format "{{.Names}}" | grep -q "$containerName"; then log_step "Container IS RUNNING"; else log_error "Container is NOT RUNNING"; fi' \
-                'log_step "Checking ALL containers (including stopped)..."' \
-                'docker ps -a --filter "name=$containerName" 2>&1 | sudo tee -a "$LOGFILE"' \
-                'log_step "Checking container logs..."' \
-                'docker logs "$containerName" --tail 50 2>&1 | sudo tee -a "$LOGFILE" || log_error "Failed to get container logs"' \
-                'log_step "Checking if ports are listening..."' \
-                'sudo netstat -tulpn | grep 8443 2>&1 | sudo tee -a "$LOGFILE" || log_error "Port 8443 not found in netstat"' \
-                'log_step "Checking journalctl logs for service..."' \
-                'sudo journalctl -u quic-host.service -n 50 --no-pager 2>&1 | sudo tee -a "$LOGFILE" || true' \
-                'log_step "Setting up port forwarding from 443 to 8443..."' \
-                'log_step "Installing iptables-persistent for rule persistence..."' \
-                'sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq 2>&1 | sudo tee -a "$LOGFILE" && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iptables-persistent 2>&1 | sudo tee -a "$LOGFILE" || log_step "iptables-persistent already installed or failed to install"' \
-                'log_step "Configuring iptables rules..."' \
-                'sudo iptables -t nat -C PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443 2>&1 | sudo tee -a "$LOGFILE" || sudo iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443 2>&1 | sudo tee -a "$LOGFILE"' \
-                'sudo iptables -t nat -C PREROUTING -p udp --dport 443 -j REDIRECT --to-port 8443 2>&1 | sudo tee -a "$LOGFILE" || sudo iptables -t nat -A PREROUTING -p udp --dport 443 -j REDIRECT --to-port 8443 2>&1 | sudo tee -a "$LOGFILE"' \
-                'log_step "Saving iptables rules..."' \
-                'sudo netfilter-persistent save 2>&1 | sudo tee -a "$LOGFILE" || sudo sh -c "mkdir -p /etc/iptables && iptables-save > /etc/iptables/rules.v4" 2>&1 | sudo tee -a "$LOGFILE"' \
-                'log_step "Port forwarding configured: 443 -> 8443 (TCP and UDP)"' \
-                'log_step "Verifying iptables rules..."' \
-                'sudo iptables -t nat -L PREROUTING -n -v | grep -E "(443|8443)" 2>&1 | sudo tee -a "$LOGFILE" || log_step "No matching rules found"' \
-                'log_step "Deployment complete! Service is managed by systemd and will auto-start on boot."' \
-                'log_step "Full deployment log saved to: $LOGFILE"'
+                'echo "$deployScript" | base64 -d > /tmp/deploy.sh' \
+                'chmod +x /tmp/deploy.sh' \
+                '/tmp/deploy.sh "$acrServer" "$imageName" "$containerName" "$acrPassword"'
       
       - name: Verify Container is Running
         uses: azure/CLI@v1
