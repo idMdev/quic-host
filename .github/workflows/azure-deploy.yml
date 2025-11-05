@@ -44,9 +44,9 @@ jobs:
           echo "Logging into Azure Container Registry"
           echo "========================================="
           echo "Registry: ${{ env.ACR_SERVER }}"
-          
+          echo "ACR shortname: ${{ACR_SHORTNAME}}"
           # Get ACR credentials using access token
-          ACR_ACCESS_TOKEN=$(az acr login --name ${{ env.ACR_SHORTNAME }} --expose-token --output tsv --query accessToken)
+          ACR_ACCESS_TOKEN=$(az acr login --name ${{ACR_SHORTNAME}} --expose-token --output tsv --query accessToken)
           echo "::add-mask::$ACR_ACCESS_TOKEN"
           
           # Login Docker to ACR using token
