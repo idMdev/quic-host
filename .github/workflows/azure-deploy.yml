@@ -59,8 +59,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.ACR_URL }}/${{ vars.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.ACR_URL }}/${{ vars.IMAGE_NAME }}:latest
+            ${ env.ACR_URL }/${{ vars.IMAGE_NAME }}:${{ github.sha }}
+            ${ env.ACR_URL }/${{ vars.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
       
