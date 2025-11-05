@@ -37,6 +37,10 @@ jobs:
           ACR_URL: ${{ vars.ACR_SERVER }}.${{ vars.ACR_FQDN }}
         run: |
           echo "========================================="
+          echo "Exporting {$ACR_URL} variable"
+          echo "========================================="
+          echo "ACR_URL={$ACR_URL} >> "$GITHUB_OUTPUT"
+          echo "========================================="
           echo "Logging into Azure Container Registry"
           echo "========================================="
           echo "Registry: ${ACR_URL}"
