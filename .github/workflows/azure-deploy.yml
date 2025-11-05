@@ -39,7 +39,7 @@ jobs:
           echo "========================================="
           echo "Exporting {$ACR_URL} variable"
           echo "========================================="
-          echo "ACR_URL={$ACR_URL} >> "$GITHUB_OUTPUT"
+          echo "ACR_URL={$ACR_URL}" >> "$GITHUB_OUTPUT"
           echo "========================================="
           echo "Logging into Azure Container Registry"
           echo "========================================="
