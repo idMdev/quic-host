@@ -39,7 +39,9 @@ jobs:
           echo "Registry: ${{ env.ACR_SERVER }}"
 
           # Extract server name from registry fqdn
-          ACR_SHORTNAME = "${{ env.ACR_SERVER} }%%.*"
+          # first label before the first dot
+          ACR_SHORTNAME: ${{ fromJSON('["' + replace(env.ACR_SERVER, '.', '","') + '"]')[0] }}
+
           # Get ACR credentials using access token
           ACR_ACCESS_TOKEN=$(az acr login --name ${{ env.ACR_SHORTNAME }} --expose-token --output tsv --query accessToken)
           echo "::add-mask::$ACR_ACCESS_TOKEN"
