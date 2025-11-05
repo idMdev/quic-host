@@ -41,7 +41,7 @@ jobs:
           # Extract server name from registry fqdn
           ACR_SHORTNAME = "${{ env.ACR_SERVER} }%%.*"
           # Get ACR credentials using access token
-          ACR_ACCESS_TOKEN=$(az acr login --name ${{ env.ACR_SERVER }} --expose-token --output tsv --query accessToken)
+          ACR_ACCESS_TOKEN=$(az acr login --name ${{ env.ACR_SHORTNAME }} --expose-token --output tsv --query accessToken)
           echo "::add-mask::$ACR_ACCESS_TOKEN"
           
           # Login Docker to ACR using token
