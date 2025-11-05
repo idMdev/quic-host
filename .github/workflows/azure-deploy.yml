@@ -34,14 +34,14 @@ jobs:
       - name: Login to Azure Container Registry
         id: acr_login
         env:
-          ACR_URL: ${{ env.ACR_SERVER }}.${{ env.ACR_FQDN }}
+          ACR_URL: ${{ vars.ACR_SERVER }}.${{ vars.ACR_FQDN }}
         run: |
           echo "========================================="
           echo "Logging into Azure Container Registry"
           echo "========================================="
           echo "Registry: ${ACR_URL}"
           # Get ACR credentials using access token
-          ACR_ACCESS_TOKEN=$(az acr login --name ${{ env.ACR_SERVER }} --expose-token --output tsv --query accessToken)
+          ACR_ACCESS_TOKEN=$(az acr login --name ${{ vars.ACR_SERVER }} --expose-token --output tsv --query accessToken)
           echo "::add-mask::$ACR_ACCESS_TOKEN"
           
           # Login Docker to ACR using token
@@ -55,8 +55,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${ACR_URL}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${ACR_URL}/${{ env.IMAGE_NAME }}:latest
+            ${ACR_URL}/${{ vars.IMAGE_NAME }}:${{ github.sha }}
+            ${ACR_URL}/${{ vars.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
       
@@ -70,8 +70,8 @@ jobs:
             
             # Get VM details
             echo "Getting VM details..."
-            VM_NAME=$(az vm list --resource-group ${{ env.RESOURCE_GROUP }} --query "[0].name" -o tsv)
-            VM_IP=$(az vm list-ip-addresses --resource-group ${{ env.RESOURCE_GROUP }} --name $VM_NAME --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
+            VM_NAME=$(az vm list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].name" -o tsv)
+            VM_IP=$(az vm list-ip-addresses --resource-group ${{ vars.RESOURCE_GROUP }} --name $VM_NAME --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
             
             echo "VM Name: $VM_NAME"
             echo "VM IP: $VM_IP"
@@ -91,13 +91,13 @@ jobs:
             
             # Copy deploy script to VM and execute it (no password needed with managed identity)
             DEPLOY_OUTPUT=$(az vm run-command invoke \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --resource-group ${{ vars.RESOURCE_GROUP }} \
               --name $VM_NAME \
               --command-id RunShellScript \
               --parameters \
                 "acrServer=${ACR_URL}" \
-                "imageName=${{ env.IMAGE_NAME }}" \
-                "containerName=${{ env.CONTAINER_NAME }}" \
+                "imageName=${{ vars.IMAGE_NAME }}" \
+                "containerName=${{ vars.CONTAINER_NAME }}" \
                 "deployScript=$DEPLOY_SCRIPT" \
               --scripts \
                 'echo "$deployScript" | base64 -d > /tmp/deploy.sh' \
@@ -126,8 +126,8 @@ jobs:
         uses: azure/CLI@v1
         with:
           inlineScript: |
-            VM_NAME=$(az vm list --resource-group ${{ env.RESOURCE_GROUP }} --query "[0].name" -o tsv)
-            VM_IP=$(az vm list-ip-addresses --resource-group ${{ env.RESOURCE_GROUP }} --name $VM_NAME --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
+            VM_NAME=$(az vm list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].name" -o tsv)
+            VM_IP=$(az vm list-ip-addresses --resource-group ${{ vars.RESOURCE_GROUP }} --name $VM_NAME --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
             
             echo "========================================="
             echo "TESTING: HTTP Response from Container"
@@ -180,7 +180,7 @@ jobs:
             echo ""
             echo "Fetching container logs for troubleshooting..."
             az vm run-command invoke \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --resource-group ${{ vars.RESOURCE_GROUP }} \
               --name $VM_NAME \
               --command-id RunShellScript \
               --scripts 'docker logs quic-host --tail 100 2>&1 || echo "Cannot get container logs"' \
@@ -193,15 +193,15 @@ jobs:
         uses: azure/CLI@v1
         with:
           inlineScript: |
-            VM_NAME=$(az vm list --resource-group ${{ env.RESOURCE_GROUP }} --query "[0].name" -o tsv)
-            VM_IP=$(az vm list-ip-addresses --resource-group ${{ env.RESOURCE_GROUP }} --name $VM_NAME --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
+            VM_NAME=$(az vm list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].name" -o tsv)
+            VM_IP=$(az vm list-ip-addresses --resource-group ${{ vars.RESOURCE_GROUP }} --name $VM_NAME --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
             
             echo ""
             echo "========================================="
             echo "✅ DEPLOYMENT SUCCESSFUL"
             echo "========================================="
-            echo "Container: ${{ env.CONTAINER_NAME }}"
-            echo "Image: ${ACR_URL}${{ env.IMAGE_NAME }}:latest"
+            echo "Container: ${{ vars.CONTAINER_NAME }}"
+            echo "Image: ${ACR_URL}${{ vars.IMAGE_NAME }}:latest"
             echo "VM: $VM_NAME"
             echo "Public IP: $VM_IP"
             echo ""
