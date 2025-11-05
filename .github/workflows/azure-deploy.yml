@@ -37,9 +37,9 @@ jobs:
           ACR_URL: ${{ vars.ACR_SERVER }}.${{ vars.ACR_FQDN }}
         run: |
           echo "========================================="
-          echo "Exporting {$ACR_URL} variable"
+          echo "Exporting ${ACR_URL} variable"
           echo "========================================="
-          echo "ACR_URL={$ACR_URL}" >> "$GITHUB_ENV"
+          echo "ACR_URL=${ACR_URL}" >> "$GITHUB_ENV"
           echo "========================================="
           echo "Logging into Azure Container Registry"
           echo "========================================="
@@ -59,8 +59,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${ env.ACR_URL }/${{ vars.IMAGE_NAME }}:${{ github.sha }}
-            ${ env.ACR_URL }/${{ vars.IMAGE_NAME }}:latest
+            ${{ env.ACR_URL }}/${{ vars.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.ACR_URL }}/${{ vars.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
       
