@@ -15,8 +15,8 @@ ACR_SERVER="${1:-$acrServer}"
 IMAGE_NAME="${2:-$imageName}"
 CONTAINER_NAME="${3:-$containerName}"
 
-LOGFILE="/var/log/quic-host-deploy.log"
-DETAILED_LOGFILE="/var/log/quic-host-deploy-detailed.log"
+LOGFILE="/var/log/${IMAGE_NAME}-deploy.log"
+DETAILED_LOGFILE="/var/log/${IMAGE_NAME}-deploy-detailed.log"
 
 echo "==========================================="
 echo "$(date "+%Y-%m-%d %H:%M:%S") - Starting deployment"
@@ -43,7 +43,7 @@ log_step "Deployment Configuration"
 log_step "=========================================="
 log_step "ACR Server: $ACR_SERVER"
 log_step "Image Name: $IMAGE_NAME"
-log_step "Container Name: $CONTAINER_NAME"
+log_step "Container Name: ${CONTAINER_NAME}"
 log_step "Log File: $LOGFILE"
 log_step "Detailed Log File: $DETAILED_LOGFILE"
 log_step "=========================================="
@@ -133,7 +133,7 @@ ACR_NAME="${ACR_SERVER%%.*}"
 log_detail "Extracted ACR name: $ACR_NAME"
 
 log_step "Creating systemd service unit file..."
-cat <<EOF | sudo tee /etc/systemd/system/quic-host.service > /dev/null
+cat <<EOF | sudo tee /etc/systemd/system/${IMAGE_NAME}.service > /dev/null
 [Unit]
 Description=QUIC Host Container Service
 After=docker.service
@@ -147,15 +147,15 @@ TimeoutStartSec=0
 StandardOutput=journal
 StandardError=journal
 # Login to ACR using managed identity before pulling
-ExecStartPre=/usr/local/bin/acr-login-helper.sh $ACR_NAME
+ExecStartPre=/bin/bash -c '/usr/local/bin/acr-login-helper.sh quichostacr && docker pull $ACR_SERVER/${IMAGE_NAME}:latest
 # Stop and remove old container
-ExecStartPre=-/usr/bin/docker stop quic-host
-ExecStartPre=-/usr/bin/docker rm quic-host
+ExecStartPre=-/usr/bin/docker stop ${CONTAINER_NAME}
+ExecStartPre=-/usr/bin/docker rm ${CONTAINER_NAME}
 # Pull latest image from ACR
-ExecStartPre=/usr/bin/docker pull $ACR_SERVER/quic-host:latest
+ExecStartPre=/usr/bin/docker pull $ACR_SERVER/${IMAGE_NAME}:latest
 # Start the container
-ExecStart=/usr/bin/docker run --name quic-host -p 8443:8443/tcp -p 8443:8443/udp -e PORT=8443 $ACR_SERVER/quic-host:latest
-ExecStop=/usr/bin/docker stop quic-host
+ExecStart=/usr/bin/docker run --name ${CONTAINER_NAME} -p 8443:8443/tcp -p 8443:8443/udp -e PORT=8443 $ACR_SERVER/${IMAGE_NAME}:latest
+ExecStop=/usr/bin/docker stop ${CONTAINER_NAME}
 
 [Install]
 WantedBy=multi-user.target
@@ -171,27 +171,27 @@ else
     log_error "Failed to reload systemd daemon"
 fi
 
-log_step "Enabling quic-host service..."
-if sudo systemctl enable quic-host.service 2>&1 | sudo tee -a "$DETAILED_LOGFILE"; then
-    log_detail "quic-host service enabled successfully (will start on boot)"
+log_step "Enabling ${IMAGE_NAME} service..."
+if sudo systemctl enable ${IMAGE_NAME}.service 2>&1 | sudo tee -a "$DETAILED_LOGFILE"; then
+    log_detail "${IMAGE_NAME} service enabled successfully (will start on boot)"
 else
-    log_error "Failed to enable quic-host service"
+    log_error "Failed to enable ${IMAGE_NAME} service"
 fi
 
 log_step "Stopping old service if running..."
-if sudo systemctl stop quic-host.service 2>&1 | sudo tee -a "$DETAILED_LOGFILE"; then
-    log_detail "Old service stopped successfully"
+if sudo systemctl stop ${IMAGE_NAME}.service 2>&1 | sudo tee -a "$DETAILED_LOGFILE"; then
+    log_detail "Existing service ${IMAGE_NAME} stopped successfully"
 else
-    log_detail "No old service was running (this is normal for first deployment)"
+    log_detail "${IMAGE_NAME} existing service was running (this is normal for first deployment)"
 fi
 
-log_step "Starting quic-host service..."
-if sudo systemctl start quic-host.service 2>&1 | sudo tee -a "$DETAILED_LOGFILE"; then
-    log_detail "quic-host service started successfully"
+log_step "Starting ${IMAGE_NAME} service..."
+if sudo systemctl start ${IMAGE_NAME}.service 2>&1 | sudo tee -a "$DETAILED_LOGFILE"; then
+    log_detail "${IMAGE_NAME} service started successfully"
 else
-    log_error "Failed to start quic-host service"
+    log_error "Failed to start ${IMAGE_NAME} service"
     log_step "Checking journalctl for error details..."
-    sudo journalctl -u quic-host.service -n 50 --no-pager 2>&1 | sudo tee -a "$DETAILED_LOGFILE"
+    sudo journalctl -u ${IMAGE_NAME}.service -n 50 --no-pager 2>&1 | sudo tee -a "$DETAILED_LOGFILE"
     exit 1
 fi
 
@@ -203,14 +203,14 @@ done
 echo ""
 
 log_step "Checking service status..."
-if sudo systemctl status quic-host.service --no-pager 2>&1 | sudo tee -a "$DETAILED_LOGFILE"; then
+if sudo systemctl status ${IMAGE_NAME}.service --no-pager 2>&1 | sudo tee -a "$DETAILED_LOGFILE"; then
     log_detail "Service status check completed successfully"
 else
     log_error "Service status check failed"
 fi
 
 log_step "Checking if service is active..."
-if sudo systemctl is-active quic-host.service 2>&1 | sudo tee -a "$DETAILED_LOGFILE"; then 
+if sudo systemctl is-active ${IMAGE_NAME}.service 2>&1 | sudo tee -a "$DETAILED_LOGFILE"; then 
     log_step "✓ Service is ACTIVE"
 else 
     log_error "✗ Service is NOT ACTIVE"
@@ -219,31 +219,31 @@ else
 fi
 
 log_step "Verifying Docker images..."
-if docker images | grep quic-host 2>&1 | sudo tee -a "$DETAILED_LOGFILE"; then
+if docker images | grep ${IMAGE_NAME} 2>&1 | sudo tee -a "$DETAILED_LOGFILE"; then
     log_detail "Docker images found"
     IMAGE_COUNT=$(docker images --filter "reference=*quic-host*" --format "{{.Repository}}" | wc -l)
-    log_detail "Number of quic-host images: $IMAGE_COUNT"
+    log_detail "Number of ${IMAGE_NAME} images: $IMAGE_COUNT"
 else
-    log_error "No quic-host images found - this is unexpected after pulling"
+    log_error "No ${IMAGE_NAME} images found - this is unexpected after pulling"
     log_detail "This may indicate a problem with the image pull step"
 fi
 
 log_step "Verifying container is running..."
-docker ps --filter "name=$CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>&1 | sudo tee -a "$DETAILED_LOGFILE"
+docker ps --filter "name=${CONTAINER_NAME}" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>&1 | sudo tee -a "$DETAILED_LOGFILE"
 
-if docker ps --filter "name=$CONTAINER_NAME" --format "{{.Names}}" | grep -q "$CONTAINER_NAME"; then 
+if docker ps --filter "name=${CONTAINER_NAME}" --format "{{.Names}}" | grep -q "${CONTAINER_NAME}"; then 
     log_step "✓ Container IS RUNNING"
     log_detail "Container details:"
-    docker inspect "$CONTAINER_NAME" --format "State: {{.State.Status}}, StartedAt: {{.State.StartedAt}}" 2>&1 | sudo tee -a "$DETAILED_LOGFILE"
+    docker inspect "${CONTAINER_NAME}" --format "State: {{.State.Status}}, StartedAt: {{.State.StartedAt}}" 2>&1 | sudo tee -a "$DETAILED_LOGFILE"
 else 
     log_error "✗ Container is NOT RUNNING"
 fi
 
 log_step "Checking ALL containers (including stopped)..."
-docker ps -a --filter "name=$CONTAINER_NAME" 2>&1 | sudo tee -a "$DETAILED_LOGFILE"
+docker ps -a --filter "name=${CONTAINER_NAME}" 2>&1 | sudo tee -a "$DETAILED_LOGFILE"
 
 log_step "Checking container logs (last 50 lines)..."
-if docker logs "$CONTAINER_NAME" --tail 50 2>&1 | sudo tee -a "$DETAILED_LOGFILE"; then
+if docker logs "${CONTAINER_NAME}" --tail 50 2>&1 | sudo tee -a "$DETAILED_LOGFILE"; then
     log_detail "Container logs retrieved successfully"
 else
     log_error "Failed to get container logs - container may not exist yet"
@@ -258,7 +258,7 @@ else
 fi
 
 log_step "Checking journalctl logs for service (last 50 lines)..."
-sudo journalctl -u quic-host.service -n 50 --no-pager 2>&1 | sudo tee -a "$DETAILED_LOGFILE" || true
+sudo journalctl -u ${IMAGE_NAME}.service -n 50 --no-pager 2>&1 | sudo tee -a "$DETAILED_LOGFILE" || true
 
 log_step "Checking ACR login helper logs..."
 if [ -f /var/log/quic-host-acr-login.log ]; then
@@ -324,13 +324,13 @@ log_step "Service is managed by systemd and will auto-start on boot."
 log_step "Log files:"
 log_step "  - Main log:     $LOGFILE"
 log_step "  - Detailed log: $DETAILED_LOGFILE"
-log_step "  - ACR login:    /var/log/quic-host-acr-login.log"
-log_step "  - Service logs: sudo journalctl -u quic-host.service"
-log_step "  - Container:    docker logs $CONTAINER_NAME"
+log_step "  - ACR login:    /var/log/${IMAGE_NAME}-acr-login.log"
+log_step "  - Service logs: sudo journalctl -u ${IMAGE_NAME}.service"
+log_step "  - Container:    docker logs ${CONTAINER_NAME}"
 log_step "=========================================="
 log_step "Useful commands:"
-log_step "  - View status:  sudo systemctl status quic-host.service"
-log_step "  - Restart:      sudo systemctl restart quic-host.service"
-log_step "  - Stop:         sudo systemctl stop quic-host.service"
-log_step "  - Logs:         sudo journalctl -u quic-host.service -f"
+log_step "  - View status:  sudo systemctl status ${IMAGE_NAME}.service"
+log_step "  - Restart:      sudo systemctl restart ${IMAGE_NAME}.service"
+log_step "  - Stop:         sudo systemctl stop ${IMAGE_NAME}.service"
+log_step "  - Logs:         sudo journalctl -u ${IMAGE_NAME}.service -f"
 log_step "=========================================="
