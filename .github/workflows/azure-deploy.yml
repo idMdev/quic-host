@@ -9,12 +9,6 @@ on:
       - '*.md'
   workflow_dispatch:
 
-env:
-  REGISTRY_NAME: quichostacr
-  IMAGE_NAME: quic-host
-  CONTAINER_NAME: quic-host
-  RESOURCE_GROUP: dns-server-rg
-
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -42,14 +36,14 @@ jobs:
           echo "========================================="
           echo "Logging into Azure Container Registry"
           echo "========================================="
-          echo "Registry: ${{ env.REGISTRY_NAME }}.azurecr.io"
+          echo "Registry: ${{ env.ACR_SERVER }}"
           
           # Get ACR credentials using access token
-          ACR_ACCESS_TOKEN=$(az acr login --name ${{ env.REGISTRY_NAME }} --expose-token --output tsv --query accessToken)
+          ACR_ACCESS_TOKEN=$(az acr login --name ${{ env.ACR_SERVER }} --expose-token --output tsv --query accessToken)
           echo "::add-mask::$ACR_ACCESS_TOKEN"
           
           # Login Docker to ACR using token
-          echo "$ACR_ACCESS_TOKEN" | docker login ${{ env.REGISTRY_NAME }}.azurecr.io --username 00000000-0000-0000-0000-000000000000 --password-stdin
+          echo "$ACR_ACCESS_TOKEN" | docker login ${{ env.ACR_SERVER }} --username 00000000-0000-0000-0000-000000000000 --password-stdin
           
           echo "✓ Successfully logged into ACR"
       
@@ -59,8 +53,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
+            ${{ env.ACR_SERVER }}${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.ACR_SERVER }}${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
       
@@ -82,8 +76,7 @@ jobs:
             echo ""
             
             # Get ACR login server
-            ACR_LOGIN_SERVER="${{ env.REGISTRY_NAME }}.azurecr.io"
-            echo "ACR Server: $ACR_LOGIN_SERVER"
+            echo "ACR Server: $ACR_SERVER_SERVER"
             echo ""
             
             # Read the deployment script
@@ -100,7 +93,7 @@ jobs:
               --name $VM_NAME \
               --command-id RunShellScript \
               --parameters \
-                "acrServer=$ACR_LOGIN_SERVER" \
+                "acrServer=${{ env.ACR_SERVER" }} \
                 "imageName=${{ env.IMAGE_NAME }}" \
                 "containerName=${{ env.CONTAINER_NAME }}" \
                 "deployScript=$DEPLOY_SCRIPT" \
@@ -206,7 +199,7 @@ jobs:
             echo "✅ DEPLOYMENT SUCCESSFUL"
             echo "========================================="
             echo "Container: ${{ env.CONTAINER_NAME }}"
-            echo "Image: ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest"
+            echo "Image: ${{ env.ACR_SERVER }}${{ env.IMAGE_NAME }}:latest"
             echo "VM: $VM_NAME"
             echo "Public IP: $VM_IP"
             echo ""
