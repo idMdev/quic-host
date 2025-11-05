@@ -250,7 +250,7 @@ else
         --name "$VM_NAME" \
         --command-id RunShellScript \
         --scripts "az version 2>/dev/null || echo 'not installed'" \
-        --query "value[0].message" -o tsv 2>/dev/null | grep -o "azure-cli" || echo "")
+        --query "value[0].message" -o tsv | grep -o "azure-cli" || echo "")
     
     if [ -z "$AZ_CLI_CHECK" ]; then
         echo "Installing Azure CLI on VM (this may take a few minutes)..."

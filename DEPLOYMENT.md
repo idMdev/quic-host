@@ -219,10 +219,6 @@ az vm run-command invoke \
   --command-id RunShellScript \
   --scripts "cat /var/log/quic-host-acr-login.log"
 ```
-  --name $VM_NAME \
-  --command-id RunShellScript \
-  --scripts "docker logs quic-host --tail 50"
-```
 
 ### Test Service Endpoint
 

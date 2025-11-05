@@ -5,6 +5,11 @@
 
 set -e
 
+# Configuration constants
+METADATA_ENDPOINT="http://169.254.169.254/metadata/identity/oauth2/token"
+METADATA_API_VERSION="2021-02-01"
+SERVICE_STARTUP_WAIT_SECONDS=20
+
 # Parameters (passed via environment or command line)
 ACR_SERVER="${1:-$acrServer}"
 IMAGE_NAME="${2:-$imageName}"
@@ -82,7 +87,7 @@ if az acr login --name "${ACR_SERVER%%.*}" 2>&1 | sudo tee -a "$DETAILED_LOGFILE
 else
     log_error "Failed to login to ACR using managed identity"
     log_detail "Checking if VM has managed identity assigned..."
-    IDENTITY_CHECK=$(curl -s -H Metadata:true "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2021-02-01&resource=https://management.azure.com/" 2>&1 || echo "FAILED")
+    IDENTITY_CHECK=$(curl -s -H Metadata:true "${METADATA_ENDPOINT}?api-version=${METADATA_API_VERSION}&resource=https://management.azure.com/" 2>&1 || echo "FAILED")
     if echo "$IDENTITY_CHECK" | grep -q "access_token"; then
         log_detail "VM has managed identity but ACR login failed. Check role assignments."
     else
@@ -190,8 +195,8 @@ else
     exit 1
 fi
 
-log_step "Waiting 20 seconds for service to fully start and pull image..."
-for i in {1..20}; do
+log_step "Waiting ${SERVICE_STARTUP_WAIT_SECONDS} seconds for service to fully start and pull image..."
+for i in $(seq 1 $SERVICE_STARTUP_WAIT_SECONDS); do
     echo -n "."
     sleep 1
 done
