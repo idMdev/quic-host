@@ -157,7 +157,7 @@ jobs:
                 else
                   echo "⚠️  Response doesn't contain expected content"
                   echo "Response preview:"
-                  echo "${{RESPONSE}" | head -n 20
+                  echo "${RESPONSE}" | head -n 20
                 fi
                 
                 # Test video endpoint
