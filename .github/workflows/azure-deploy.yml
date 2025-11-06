@@ -84,8 +84,7 @@ jobs:
             echo "Preparing deployment script..."
             DEPLOY_SCRIPT=$(echo "11234313123")
             echo "DEPLOY_SCRIPT=${{ env.DEPLOY_SCRIPT }}" >> "$GITHUB_ENV"
-
-            VM_CMD='az vm run-command invoke --resource-group ${{ vars.RESOURCE_GROUP }} --name ${VM_NAME} --command-id RunShellScript --parameters "acrServer=${{ env.ACR_URL }}" "imageName=${{ vars.IMAGE_NAME }}" "containerName=${{ vars.CONTAINER_NAME }}" "deployScript=${{ env.DEPLOY_SCRIPT }}" --scripts "ls -la /var/log | /usr/bin/tee /var/tmp/out2.txt" --query "value[0].message" -o tsv'
+            
             echo "VM Name: ${VM_NAME}"
             echo "VM IP: ${VM_IP}"
             echo ""
