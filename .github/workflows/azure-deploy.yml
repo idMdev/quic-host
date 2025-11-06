@@ -100,7 +100,7 @@ jobs:
               --name "githubaction" \
               --resource-group ${{ vars.RESOURCE_GROUP }} \
               --vm-name ${VM_NAME} \
-              --script "/usr/bin/docker ps stop quic-container"
+              --script "/usr/bin/docker stop quic-container"
               )
             echo "========================================="
             echo "Deployment Script Output:"
