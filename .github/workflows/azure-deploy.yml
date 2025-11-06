@@ -86,7 +86,7 @@ jobs:
             
             # Read the deployment script
             echo "Preparing deployment script..."
-            DEPLOY_SCRIPT=$(cat azure/deploy.sh | base64 -w 0)
+            DEPLOY_SCRIPT=$(echo "11234313123" | base64 -w 0)
             echo "============SCRIPT======================="
             echo "${DEPLOY_SCRIPT}"
             echo "========================================="
