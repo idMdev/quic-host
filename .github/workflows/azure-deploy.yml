@@ -104,7 +104,7 @@ jobs:
                 "imageName=${{ vars.IMAGE_NAME }}" \
                 "containerName=${{ vars.CONTAINER_NAME }}" \
                 "deployScript=$DEPLOY_SCRIPT" \
-              --scripts 'echo "This is a test" | tee /tmp/out.txt' \
+              --scripts 'echo "This is a test" | /usr/bin/tee /var/tmp/out.txt' \
               --query "value[0].message" -o tsv
               )
             
