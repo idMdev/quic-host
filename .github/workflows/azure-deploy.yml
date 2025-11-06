@@ -104,11 +104,12 @@ jobs:
                 "imageName=${{ vars.IMAGE_NAME }}" \
                 "containerName=${{ vars.CONTAINER_NAME }}" \
                 "deployScript=$DEPLOY_SCRIPT" \
-              --scripts \
-                'set -Eeuo pipefail' \
-                'printf "%s" "$deployScript" | base64 -d > /tmp/deploy.sh' \
-                'chmod +x /tmp/deploy.sh' \
-                '/tmp/deploy.sh "$acrServer" "$imageName" "$containerName"' \
+              --scripts '
+                set -Eeuo pipefail
+                printf "%s" "$deployScript" | base64 -d > /tmp/deploy.sh
+                chmod +x /tmp/deploy.sh
+                /tmp/deploy.sh "$acrServer" "$imageName" "$containerName"
+                '
               --query "value[0].message" -o tsv)
             
             echo "========================================="
