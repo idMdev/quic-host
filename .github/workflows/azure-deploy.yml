@@ -85,9 +85,9 @@ jobs:
             DEPLOY_SCRIPT=$(echo "11234313123")
             echo "DEPLOY_SCRIPT=${{ env.DEPLOY_SCRIPT }}" >> "$GITHUB_ENV"
 
-            VM_CMD='az vm run-command invoke --resource-group ${{ vars.RESOURCE_GROUP }} --name ${{ env.VM_NAME }} --command-id RunShellScript --parameters "acrServer=${{ env.ACR_URL }}" "imageName=${{ vars.IMAGE_NAME }}" "containerName=${{ vars.CONTAINER_NAME }}" "deployScript=${{ env.DEPLOY_SCRIPT }}" --scripts "ls -la /var/log | /usr/bin/tee /var/tmp/out2.txt" --query "value[0].message" -o tsv'
-            echo "VM Name: ${{ env.VM_NAME }}"
-            echo "VM IP: ${{ env.VM_IP }}"
+            VM_CMD='az vm run-command invoke --resource-group ${{ vars.RESOURCE_GROUP }} --name ${VM_NAME} --command-id RunShellScript --parameters "acrServer=${{ env.ACR_URL }}" "imageName=${{ vars.IMAGE_NAME }}" "containerName=${{ vars.CONTAINER_NAME }}" "deployScript=${{ env.DEPLOY_SCRIPT }}" --scripts "ls -la /var/log | /usr/bin/tee /var/tmp/out2.txt" --query "value[0].message" -o tsv'
+            echo "VM Name: ${VM_NAME}"
+            echo "VM IP: ${VM_IP}"
             echo ""
             
             # Get ACR login server
@@ -100,13 +100,13 @@ jobs:
             # Copy deploy script to VM and execute it (no password needed with managed identity)
             DEPLOY_OUTPUT=$(az vm run-command invoke \
               --resource-group ${{ vars.RESOURCE_GROUP }} \
-              --name ${{ env.VM_NAME }} \
+              --name ${VM_NAME} \
               --command-id RunShellScript \
               --parameters \
                 "acrServer=${{ env.ACR_URL }}" \
                 "imageName=${{ vars.IMAGE_NAME }}" \
                 "containerName=${{ vars.CONTAINER_NAME }}" \
-                "deployScript=${{ env.DEPLOY_SCRIPT }}" \
+                "deployScript=${DEPLOY_SCRIPT}" \
               --scripts 'echo "This is a test" | /usr/bin/tee /var/tmp/out.txt' \
               --query "value[0].message" -o tsv
               )
