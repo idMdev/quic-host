@@ -106,7 +106,7 @@ jobs:
                 "deployScript=$DEPLOY_SCRIPT" \
               --scripts 'echo "This is a test" | tee /tmp/out.txt'
               --query "value[0].message" -o tsv
-              ')
+              )
             
             echo "========================================="
             echo "Deployment Script Output:"
