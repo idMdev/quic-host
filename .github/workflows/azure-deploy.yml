@@ -95,22 +95,15 @@ jobs:
             echo "Copying deployment script to VM and executing..."
             echo "NOTE: Deployment uses VM's managed identity for ACR authentication"
             echo ""
-            
+            az vm run-command create --name "myRunCommand" --vm-name "myVM" --resource-group "myRG" --script "echo Hello World!"
             # Copy deploy script to VM and execute it (no password needed with managed identity)
-            DEPLOY_OUTPUT=$(az vm run-command invoke \
+            DEPLOY_OUTPUT=$(az vm run-command create \
+              --name "github action" \
               --resource-group ${{ vars.RESOURCE_GROUP }} \
-              --name ${VM_NAME} \
-              --command-id RunShellScript \
-              --parameters \
-                "acrServer=${{ env.ACR_URL }}" \
-                "imageName=${{ vars.IMAGE_NAME }}" \
-                "containerName=${{ vars.CONTAINER_NAME }}" \
-              --scripts "Echo 'this is a test" \
+              --vm-name ${VM_NAME} \
+              --script "/usr/bin/docker is stop quic-container" \
               --expand instanceView
               )
-              
-              DEPLOY_OUTPUT2=$(${VM_CMD})
-            
             echo "========================================="
             echo "Deployment Script Output:"
             echo "========================================="
