@@ -82,7 +82,7 @@ jobs:
             
             # Read the deployment script
             echo "Preparing deployment script..."
-            DEPLOY_SCRIPT=$(echo "11234313123")
+            DEPLOY_SCRIPT="docker stop quic-container"
             echo "DEPLOY_SCRIPT=${{ env.DEPLOY_SCRIPT }}" >> "$GITHUB_ENV"
 
             echo "VM Name: ${VM_NAME}"
@@ -105,8 +105,7 @@ jobs:
                 "acrServer=${{ env.ACR_URL }}" \
                 "imageName=${{ vars.IMAGE_NAME }}" \
                 "containerName=${{ vars.CONTAINER_NAME }}" \
-                "deployScript=${DEPLOY_SCRIPT}" \
-              --scripts "echo 'This is a test' > /var/tmp/out.txt && sleep 100" \
+              --scripts "docker stop quic-container" \
               --query "value[0].message" -o tsv
               )
               
