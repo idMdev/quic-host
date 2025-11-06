@@ -75,7 +75,7 @@ jobs:
             echo "Getting VM details..."
             VM_NAME=$(az vm list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].name" -o tsv)
             VM_IP=$(az vm list-ip-addresses --resource-group ${{ vars.RESOURCE_GROUP }} --name $VM_NAME --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
-            
+            VM_CMD='az vm run-command invoke --resource-group ${{ vars.RESOURCE_GROUP }} --name $VM_NAME --command-id RunShellScript --parameters "acrServer=${ ACR_URL }" "imageName=${{ vars.IMAGE_NAME }}" containerName=${{ vars.CONTAINER_NAME }} "deployScript=${ DEPLOY_SCRIPT } --scripts ''echo "This is a test" | /usr/bin/tee /var/tmp/out2.txt'' --query "value[0].message" -o tsv"
             echo "VM Name: $VM_NAME"
             echo "VM IP: $VM_IP"
             echo ""
@@ -103,10 +103,12 @@ jobs:
                 "acrServer=${ACR_URL}" \
                 "imageName=${{ vars.IMAGE_NAME }}" \
                 "containerName=${{ vars.CONTAINER_NAME }}" \
-                "deployScript=$DEPLOY_SCRIPT" \
+                "deployScript=${ DEPLOY_SCRIPT" } \
               --scripts 'echo "This is a test" | /usr/bin/tee /var/tmp/out.txt' \
               --query "value[0].message" -o tsv
               )
+              
+              DEPLOY_OUTPUT2=$(${ VM_CMD })
             
             echo "========================================="
             echo "Deployment Script Output:"
