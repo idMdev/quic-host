@@ -43,13 +43,13 @@ jobs:
           echo "========================================="
           echo "Logging into Azure Container Registry"
           echo "========================================="
-          echo "Registry: ${{ ACR_URL }}"
+          echo "Registry: ${ACR_URL}"
           # Get ACR credentials using access token
           ACR_ACCESS_TOKEN=$(az acr login --name ${{ vars.ACR_SERVER }} --expose-token --output tsv --query accessToken)
-          echo "::add-mask::${{ ACR_ACCESS_TOKEN }}"
+          echo "::add-mask::${ACR_ACCESS_TOKEN}"
           
           # Login Docker to ACR using token
-          echo "${{ ACR_ACCESS_TOKEN }} " | docker login ${{ ACR_URL }} --username 00000000-0000-0000-0000-000000000000 --password-stdin
+          echo "${ACR_ACCESS_TOKEN }" | docker login ${ACR_URL} --username 00000000-0000-0000-0000-000000000000 --password-stdin
           
           echo "✓ Successfully logged into ACR"
       
@@ -59,8 +59,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.ACR_URL }}/${{ vars.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.ACR_URL }}/${{ vars.IMAGE_NAME }}:latest
+            ${ACR_URL}/${{ vars.IMAGE_NAME }}:${{ github.sha }}
+            ${ACR_URL}/${{ vars.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
       
@@ -74,22 +74,24 @@ jobs:
             # Get VM details
             echo "Getting VM details..."
             VM_NAME=$(az vm list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].name" -o tsv)
-            VM_IP=$(az vm list-ip-addresses --resource-group ${{ vars.RESOURCE_GROUP }} --name $VM_NAME --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
+            VM_IP=$(az vm list-ip-addresses --resource-group ${{ vars.RESOURCE_GROUP }} --name ${VM_NAME} --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
+            
+            # Export to environment variables
+            echo "VM_NAME=${VM_NAME}" >> "$GITHUB_ENV"
+            echo "VM_IP=${VM_IP}" >> "$GITHUB_ENV"
             
             # Read the deployment script
             echo "Preparing deployment script..."
             DEPLOY_SCRIPT=$(echo "11234313123")
-            echo "============SCRIPT======================="
-            echo "${{ DEPLOY_SCRIPT }}"
-            echo "========================================="
+            echo "DEPLOY_SCRIPT=${DEPLOY_SCRIPT}" >> "$GITHUB_ENV"
 
-            VM_CMD='az vm run-command invoke --resource-group ${{ vars.RESOURCE_GROUP }} --name $VM_NAME --command-id RunShellScript --parameters "acrServer=${ ACR_URL }" "imageName=${{ vars.IMAGE_NAME }}" "containerName=${{ vars.CONTAINER_NAME }}" "deployScript=${{ DEPLOY_SCRIPT }}" --scripts "ls -la /var/log | /usr/bin/tee /var/tmp/out2.txt" --query "value[0].message" -o tsv'
-            echo "VM Name: ${{ VM_NAME}}"
-            echo "VM IP: ${{ VM_IP }}"
+            VM_CMD='az vm run-command invoke --resource-group ${{ vars.RESOURCE_GROUP }} --name ${VM_NAME} --command-id RunShellScript --parameters "acrServer=${ACR_URL}" "imageName=${{ vars.IMAGE_NAME }}" "containerName=${{ vars.CONTAINER_NAME }}" "deployScript=${DEPLOY_SCRIPT}" --scripts "ls -la /var/log | /usr/bin/tee /var/tmp/out2.txt" --query "value[0].message" -o tsv'
+            echo "VM Name: ${VM_NAME}"
+            echo "VM IP: ${VM_IP}"
             echo ""
             
             # Get ACR login server
-            echo "ACR Server: ${{ ACR_URL }}"
+            echo "ACR Server: ${ACR_URL}"
             echo ""
             echo "Copying deployment script to VM and executing..."
             echo "NOTE: Deployment uses VM's managed identity for ACR authentication"
@@ -98,73 +100,70 @@ jobs:
             # Copy deploy script to VM and execute it (no password needed with managed identity)
             DEPLOY_OUTPUT=$(az vm run-command invoke \
               --resource-group ${{ vars.RESOURCE_GROUP }} \
-              --name ${{ VM_NAME }} \
+              --name ${VM_NAME} \
               --command-id RunShellScript \
               --parameters \
-                "acrServer=${{ ACR_URL }}" \
+                "acrServer=${ACR_URL}" \
                 "imageName=${{ vars.IMAGE_NAME }}" \
                 "containerName=${{ vars.CONTAINER_NAME }}" \
-                "deployScript=${{ DEPLOY_SCRIPT }} \
+                "deployScript=${DEPLOY_SCRIPT} \
               --scripts 'echo "This is a test" | /usr/bin/tee /var/tmp/out.txt' \
               --query "value[0].message" -o tsv
               )
               
-              DEPLOY_OUTPUT2=$(${ VM_CMD })
+              DEPLOY_OUTPUT2=$(${VM_CMD})
             
             echo "========================================="
             echo "Deployment Script Output:"
             echo "========================================="
-            echo "$DEPLOY_OUTPUT"
+            echo "${DEPLOY_OUTPUT}"
             echo ""
             
             # Check if deployment was successful
-            if echo "${{ DEPLOY_OUTPUT }}" | grep -q "Deployment Complete"; then
+            if echo "${DEPLOY_OUTPUT}" | grep -q "Deployment Complete"; then
               echo "✓ Deployment completed successfully"
             else
               echo "⚠ Deployment may have encountered issues"
               echo "Check the detailed logs on the VM:"
               echo "  - /var/log/quic-host-deploy.log"
               echo "  - /var/log/quic-host-deploy-detailed.log"
-              echo "${{ DEPLOY_OUTPUT }}"
+              echo "${DEPLOY_OUTPUT}"
             fi
       
       - name: Test Container Response
         uses: azure/CLI@v1
         with:
           inlineScript: |
-            VM_NAME=$(az vm list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].name" -o tsv)
-            VM_IP=$(az vm list-ip-addresses --resource-group ${{ vars.RESOURCE_GROUP }} --name ${{ VM_NAME }} --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
-            
             echo "========================================="
             echo "TESTING: HTTP Response from Container"
             echo "========================================="
-            echo "Testing endpoint: https://${{ VM_IP }}:8443"
+            echo "Testing endpoint: https://${VM_IP}:8443"
             echo ""
             
             # Test HTTP response with retries
             MAX_RETRIES=5
             RETRY_DELAY=10
             
-            for i in $(seq 1 ${{ MAX_RETRIES }}); do
-              echo "Attempt $i of ${{ MAX_RETRIES }}..."
+            for i in $(seq 1 ${MAX_RETRIES}); do
+              echo "Attempt $i of ${MAX_RETRIES}..."
               
-              if curl -k -s -o /dev/null -w "%{http_code}" --max-time 10 "https://${{ VM_IP }}:8443" | grep -q "200"; then
+              if curl -k -s -o /dev/null -w "%{http_code}" --max-time 10 "https://${VM_IP}:8443" | grep -q "200"; then
                 echo "✅ SUCCESS: Container is responding to HTTP requests!"
                 
                 # Get page content to verify it's the QUIC host
-                RESPONSE=$(curl -k -s --max-time 10 "https://${{ VM_IP }}:8443")
-                if echo "${{ RESPONSE }}" | grep -q "QUIC Host\|HTTP/3"; then
+                RESPONSE=$(curl -k -s --max-time 10 "https://${VM_IP}:8443")
+                if echo "${RESPONSE}" | grep -q "QUIC Host\|HTTP/3"; then
                   echo "✅ Response contains expected QUIC Host content"
                 else
                   echo "⚠️  Response doesn't contain expected content"
                   echo "Response preview:"
-                  echo "${{ RESPONSE }}" | head -n 20
+                  echo "${{RESPONSE}" | head -n 20
                 fi
                 
                 # Test video endpoint
                 echo ""
                 echo "Testing video endpoint..."
-                if curl -k -s -o /dev/null -w "%{http_code}" --max-time 10 "https://${{ VM_IP }}:8443/sample-video.mp4" | grep -q "200"; then
+                if curl -k -s -o /dev/null -w "%{http_code}" --max-time 10 "https://${VM_IP}:8443/sample-video.mp4" | grep -q "200"; then
                   echo "✅ Video endpoint is accessible"
                 else
                   echo "⚠️  Video endpoint returned non-200 status"
@@ -175,9 +174,9 @@ jobs:
               
               echo "❌ Request failed or returned non-200 status"
               
-              if [ $i -lt ${{ MAX_RETRIES }} ]; then
-                echo "Waiting ${{ RETRY_DELAY }}s before retry..."
-                sleep ${{ RETRY_DELAY }}
+              if [ $i -lt ${MAX_RETRIES} ]; then
+                echo "Waiting ${RETRY_DELAY}s before retry..."
+                sleep ${RETRY_DELAY}
               fi
             done
             
@@ -187,9 +186,9 @@ jobs:
             echo "Fetching container logs for troubleshooting..."
             az vm run-command invoke \
               --resource-group ${{ vars.RESOURCE_GROUP }} \
-              --name ${{ VM_NAME }} \
+              --name ${VM_NAME} \
               --command-id RunShellScript \
-              --scripts 'docker logs quic-host --tail 100 2>&1 || echo "Cannot get container logs"' \
+              --scripts 'docker logs ${{ vars.CONTAINER_NAME}} --tail 100 2>&1 || echo "Cannot get container logs"' \
               --query "value[0].message" -o tsv
             
             exit 1
@@ -199,21 +198,18 @@ jobs:
         uses: azure/CLI@v1
         with:
           inlineScript: |
-            VM_NAME=$(az vm list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].name" -o tsv)
-            VM_IP=$(az vm list-ip-addresses --resource-group ${{ vars.RESOURCE_GROUP }} --name ${{ VM_NAME }} --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
-            
             echo ""
             echo "========================================="
             echo "✅ DEPLOYMENT SUCCESSFUL"
             echo "========================================="
             echo "Container: ${{ vars.CONTAINER_NAME }}"
-            echo "Image: ${{ ACR_URL }}${{ vars.IMAGE_NAME }}:latest"
-            echo "VM: ${{ VM_NAME }}"
-            echo "Public IP: ${{ VM_IP }}"
+            echo "Image: ${ACR_URL}${{ vars.IMAGE_NAME }}:latest"
+            echo "VM: ${VM_NAME}"
+            echo "Public IP: ${VM_IP}"
             echo ""
             echo "Service URLs:"
-            echo "  - https://${{ VM_IP }}:443 (forwarded to container)"
-            echo "  - https://${{ VM_IP }}:8443 (direct container access)"
+            echo "  - https://${VM_IP}:443 (forwarded to container)"
+            echo "  - https://${VM_IP}:8443 (direct container access)"
             echo ""
             echo "Service Management:"
             echo "  - View logs: docker logs quic-host"
