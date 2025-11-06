@@ -84,7 +84,7 @@ jobs:
             echo "Preparing deployment script..."
             DEPLOY_SCRIPT=$(echo "11234313123")
             echo "DEPLOY_SCRIPT=${{ env.DEPLOY_SCRIPT }}" >> "$GITHUB_ENV"
-            
+
             echo "VM Name: ${VM_NAME}"
             echo "VM IP: ${VM_IP}"
             echo ""
@@ -106,7 +106,7 @@ jobs:
                 "imageName=${{ vars.IMAGE_NAME }}" \
                 "containerName=${{ vars.CONTAINER_NAME }}" \
                 "deployScript=${DEPLOY_SCRIPT}" \
-              --scripts 'echo "This is a test" | /usr/bin/tee /var/tmp/out.txt' \
+              --scripts "echo 'This is a test' > /var/tmp/out.txt" \
               --query "value[0].message" -o tsv
               )
               
