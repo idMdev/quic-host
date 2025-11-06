@@ -86,7 +86,7 @@ jobs:
             
             # Read the deployment script
             echo "Preparing deployment script..."
-            DEPLOY_SCRIPT=$(echo "11234313123" | base64 -w 0)
+            DEPLOY_SCRIPT=$(echo "11234313123")
             echo "============SCRIPT======================="
             echo "${DEPLOY_SCRIPT}"
             echo "========================================="
@@ -110,7 +110,7 @@ jobs:
                   echo "ERROR: deploy script is empty or not passed via parameters" >&2
                   exit 1
                 fi
-                if printf "%s" "$deployScript" | base64 -d > /tmp/deploy.sh; then
+                if printf "%s" "$deployScript" > /tmp/deploy.sh; then
                   :
                 else
                   echo "ERROR: base64 decode failed" >&2
