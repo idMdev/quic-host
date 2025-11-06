@@ -65,7 +65,7 @@ jobs:
           cache-to: type=gha,mode=max
       
       - name: Deploy to Azure VM
-        uses: azure/CLI@v1
+        uses: azure/CLI@v2
         with:
           inlineScript: |
             echo "========================================="
