@@ -75,6 +75,14 @@ jobs:
             echo "Getting VM details..."
             VM_NAME=$(az vm list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].name" -o tsv)
             VM_IP=$(az vm list-ip-addresses --resource-group ${{ vars.RESOURCE_GROUP }} --name $VM_NAME --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
+            
+            # Read the deployment script
+            echo "Preparing deployment script..."
+            DEPLOY_SCRIPT=$(echo "11234313123")
+            echo "============SCRIPT======================="
+            echo "${{ DEPLOY_SCRIPT }}"
+            echo "========================================="
+
             VM_CMD='az vm run-command invoke --resource-group ${{ vars.RESOURCE_GROUP }} --name $VM_NAME --command-id RunShellScript --parameters "acrServer=${ ACR_URL }" "imageName=${{ vars.IMAGE_NAME }}" "containerName=${{ vars.CONTAINER_NAME }}" "deployScript=${{ DEPLOY_SCRIPT }}" --scripts "ls -la /var/log | /usr/bin/tee /var/tmp/out2.txt" --query "value[0].message" -o tsv'
             echo "VM Name: ${{ VM_NAME}}"
             echo "VM IP: ${{ VM_IP }}"
@@ -83,13 +91,6 @@ jobs:
             # Get ACR login server
             echo "ACR Server: ${{ ACR_URL }}"
             echo ""
-            
-            # Read the deployment script
-            echo "Preparing deployment script..."
-            DEPLOY_SCRIPT=$(echo "11234313123")
-            echo "============SCRIPT======================="
-            echo "${{ DEPLOY_SCRIPT }}"
-            echo "========================================="
             echo "Copying deployment script to VM and executing..."
             echo "NOTE: Deployment uses VM's managed identity for ACR authentication"
             echo ""
