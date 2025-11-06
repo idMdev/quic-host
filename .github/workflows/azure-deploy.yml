@@ -106,7 +106,7 @@ jobs:
                 "imageName=${{ vars.IMAGE_NAME }}" \
                 "containerName=${{ vars.CONTAINER_NAME }}" \
               --scripts "Echo 'this is a test" \
-              --query "value[0].message" -o tsv
+              --expand instanceView
               )
               
               DEPLOY_OUTPUT2=$(${VM_CMD})
