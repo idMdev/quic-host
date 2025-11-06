@@ -109,8 +109,8 @@ jobs:
                 printf "%s" "$deployScript" | base64 -d > /tmp/deploy.sh
                 chmod +x /tmp/deploy.sh
                 /tmp/deploy.sh "$acrServer" "$imageName" "$containerName"
-              --query "value[0].message" -o tsv)
-              '
+              --query "value[0].message" -o tsv
+              ')
             
             echo "========================================="
             echo "Deployment Script Output:"
