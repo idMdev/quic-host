@@ -106,7 +106,16 @@ jobs:
                 "deployScript=$DEPLOY_SCRIPT" \
               --scripts '
                 set -Eeuo pipefail
-                printf "%s" "$deployScript" | base64 -d > /tmp/deploy.sh
+                if [ "${bytes:-0}" -eq 0 ]; then
+                  echo "ERROR: deploy script is empty or not passed via parameters" >&2
+                  exit 1
+                fi
+                if printf "%s" "$deployScript" | base64 -d > /tmp/deploy.sh; then
+                  :
+                else
+                  echo "ERROR: base64 decode failed" >&2
+                  exit 1
+                fi
                 chmod +x /tmp/deploy.sh
                 /tmp/deploy.sh "$acrServer" "$imageName" "$containerName"
               --query "value[0].message" -o tsv
