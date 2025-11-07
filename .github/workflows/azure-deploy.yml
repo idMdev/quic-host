@@ -104,9 +104,7 @@ jobs:
               --resource-group "${{ vars.RESOURCE_GROUP }}" \
               --vm-name "${VM_NAME}" \
               --location "${VM_LOCATION}" \
-              --parameters "acrServer=${{ env.ACR_URL }}" \
-                "imageName=${{ env.IMAGE_NAME }}" \
-                "containerName=${{ env.CONTAINER_NAME }}" \
+              --parameters "acrServer=${{ env.ACR_URL }}" "imageName=${{ env.IMAGE_NAME }}" "containerName=${{ env.CONTAINER_NAME }}" \
               --script @"azure/deploy.sh"
               )
 
