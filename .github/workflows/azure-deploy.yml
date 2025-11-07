@@ -77,6 +77,9 @@ jobs:
             VM_NAME=$(echo $VM_JSON | jq -r '.[] | .name')
             VM_LOCATION=$(echo $VM_JSON | jq -r '.[] | .location')
             VM_IP=$(az vm list-ip-addresses --resource-group ${{ vars.RESOURCE_GROUP }} --name ${VM_NAME} --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
+            ACR_URL=${{ env.ACR_URL }}
+            IMAGE_NAME=${{ env.IMAGE_NAME }}
+            CONTAINER_NAME=${{ env.CONTAINER_NAME }}
             # Export to environment variables
             echo "VM_NAME=${VM_NAME}" >> "$GITHUB_ENV"
             echo "VM_IP=${VM_IP}" >> "$GITHUB_ENV"
@@ -104,7 +107,7 @@ jobs:
               --resource-group "${{ vars.RESOURCE_GROUP }}" \
               --vm-name "${VM_NAME}" \
               --location "${VM_LOCATION}" \
-              --parameters "acrServer=${{ env.ACR_URL }}" "imageName=${{ env.IMAGE_NAME }}" "containerName=${{ env.CONTAINER_NAME }}" \
+              --parameters "acrServer=${ACR_URL}" "imageName=${IMAGE_NAME}" "containerName=${CONTAINER_NAME}" \
               --script @"azure/deploy.sh"
               )
 
