@@ -102,6 +102,7 @@ jobs:
               --vm-name ${VM_NAME} \
               --script "/usr/bin/docker stop quic-container"
               )
+
             echo "========================================="
             echo "Deployment Script Output:"
             echo "========================================="
