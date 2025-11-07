@@ -84,8 +84,8 @@ jobs:
             
             # Read the deployment script
             echo "Preparing deployment script..."
-            DEPLOY_SCRIPT="touch /tmp/abcrdedf.txt"
-            echo "DEPLOY_SCRIPT=${{ env.DEPLOY_SCRIPT }}" >> "$GITHUB_ENV"
+            #DEPLOY_SCRIPT=$(cat azure/deploy.sh | base64 -w 0)
+            #echo "DEPLOY_SCRIPT=${{ env.DEPLOY_SCRIPT }}" >> "$GITHUB_ENV"
 
             echo "VM Name: ${VM_NAME}"
             echo "VM IP: ${VM_IP}"
@@ -100,11 +100,14 @@ jobs:
             echo ""
             # Copy deploy script to VM and execute it (no password needed with managed identity)
             DEPLOY_OUTPUT=$(az vm run-command create \
-              --name "githubactionstopcontainer" \
+              --name "deploycontainer" \
               --resource-group "${{ vars.RESOURCE_GROUP }}" \
               --vm-name "${VM_NAME}" \
               --location "${VM_LOCATION}" \
-              --script "/usr/bin/docker stop quic-container && /usr/bin/touch /tmp/azcommand"
+              --parameters "acrServer=${{ env.ACR_URL }}" \
+                "imageName=${{ env.IMAGE_NAME }}" \
+                "containerName=${{ env.CONTAINER_NAME }}" \
+              --script @"azure/deploy.sh"
               )
 
             echo "========================================="
