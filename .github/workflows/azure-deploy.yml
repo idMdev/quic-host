@@ -102,8 +102,8 @@ jobs:
             DEPLOY_OUTPUT=$(az vm run-command create \
               --name "githubactionstopcontainer" \
               --resource-group "${{ vars.RESOURCE_GROUP }}" \
-              --vm-name "${{ env.VM_NAME }}" \
-              --location "${{ env.VM_LOCATION }}" \
+              --vm-name "${VM_NAME}" \
+              --location "${VM_LOCATION}" \
               --script "/usr/bin/docker stop quic-container && /usr/bin/touch /tmp/azcommand"
               )
 
