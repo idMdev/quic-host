@@ -73,20 +73,23 @@ jobs:
             echo "========================================="
             # Get VM details
             echo "Getting VM details..."
-            VM_NAME=$(az vm list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].name" -o tsv)
+            VM_JSON=$(az vm list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[].{name:name,location:location}" -o json)
             VM_IP=$(az vm list-ip-addresses --resource-group ${{ vars.RESOURCE_GROUP }} --name ${VM_NAME} --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
-            
+            VM_NAME=$(echo $VM_JSON | jq -r '.[] | .name')
+            VM_LOCATION=$(echo $VM_JSON | jq -r '.[] | .location')
             # Export to environment variables
             echo "VM_NAME=${VM_NAME}" >> "$GITHUB_ENV"
             echo "VM_IP=${VM_IP}" >> "$GITHUB_ENV"
+            echo "VM_LOCATION=${VM_LOCATION}" >> "$GITHUB_ENV"
             
             # Read the deployment script
             echo "Preparing deployment script..."
-            DEPLOY_SCRIPT="docker stop quic-container"
+            DEPLOY_SCRIPT="touch /tmp/abcrdedf.txt"
             echo "DEPLOY_SCRIPT=${{ env.DEPLOY_SCRIPT }}" >> "$GITHUB_ENV"
 
             echo "VM Name: ${VM_NAME}"
             echo "VM IP: ${VM_IP}"
+            echo "VM Location" ${VM_LOCATION}
             echo ""
             
             # Get ACR login server
@@ -100,6 +103,7 @@ jobs:
               --name "githubactionstopcontainer" \
               --resource-group "${{ vars.RESOURCE_GROUP }}" \
               --vm-name "${{ env.VM_NAME }}" \
+              --location "${{ env.VM_LOCATION }}" \
               --script "/usr/bin/docker stop quic-container && /usr/bin/touch /tmp/azcommand"
               )
 
