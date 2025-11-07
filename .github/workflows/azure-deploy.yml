@@ -74,9 +74,9 @@ jobs:
             # Get VM details
             echo "Getting VM details..."
             VM_JSON=$(az vm list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[].{name:name,location:location}" -o json)
-            VM_IP=$(az vm list-ip-addresses --resource-group ${{ vars.RESOURCE_GROUP }} --name ${VM_NAME} --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
             VM_NAME=$(echo $VM_JSON | jq -r '.[] | .name')
             VM_LOCATION=$(echo $VM_JSON | jq -r '.[] | .location')
+            VM_IP=$(az vm list-ip-addresses --resource-group ${{ vars.RESOURCE_GROUP }} --name ${VM_NAME} --query "[0].virtualMachine.network.publicIpAddresses[0].ipAddress" -o tsv)
             # Export to environment variables
             echo "VM_NAME=${VM_NAME}" >> "$GITHUB_ENV"
             echo "VM_IP=${VM_IP}" >> "$GITHUB_ENV"
