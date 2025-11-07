@@ -98,8 +98,8 @@ jobs:
             # Copy deploy script to VM and execute it (no password needed with managed identity)
             DEPLOY_OUTPUT=$(az vm run-command create \
               --name "githubactionstopcontainer" \
-              --resource-group ${{ vars.RESOURCE_GROUP }} \
-              --vm-name ${VM_NAME} \
+              --resource-group "${{ vars.RESOURCE_GROUP }}" \
+              --vm-name "${{ env.VM_NAME }}" \
               --script "/usr/bin/docker stop quic-container && /usr/bin/touch /tmp/azcommand"
               )
 
