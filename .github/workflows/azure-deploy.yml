@@ -1,4 +1,4 @@
-hi name: Deploy to Azure VM Workflow
+hi name: Deploy to Azure VM
 
 on:
   push:
@@ -97,10 +97,10 @@ jobs:
             echo ""
             # Copy deploy script to VM and execute it (no password needed with managed identity)
             DEPLOY_OUTPUT=$(az vm run-command create \
-              --name "githubaction" \
+              --name "githubactionstopcontainer" \
               --resource-group ${{ vars.RESOURCE_GROUP }} \
               --vm-name ${VM_NAME} \
-              --script "/usr/bin/docker stop quic-container"
+              --script "/usr/bin/docker stop quic-container && /usr/bin/touch /tmp/azcommand"
               )
 
             echo "========================================="
