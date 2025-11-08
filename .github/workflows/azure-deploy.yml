@@ -80,6 +80,7 @@ jobs:
             ACR_URL=${{ env.ACR_URL }}
             IMAGE_NAME=${{ vars.IMAGE_NAME }}
             CONTAINER_NAME=${{ vars.CONTAINER_NAME }}
+            JOB_NAME == "deployContainer-${{ github.run_id }}"
             # Export to environment variables
             echo "VM_NAME=${VM_NAME}" >> "$GITHUB_ENV"
             echo "VM_IP=${VM_IP}" >> "$GITHUB_ENV"
@@ -103,7 +104,7 @@ jobs:
             echo ""
             # Copy deploy script to VM and execute it (no password needed with managed identity)
             DEPLOY_OUTPUT=$(az vm run-command create \
-              --name "deploycontainer" \
+              --name "${JOB_NAME}" \
               --resource-group "${{ vars.RESOURCE_GROUP }}" \
               --vm-name "${VM_NAME}" \
               --location "${VM_LOCATION}" \
