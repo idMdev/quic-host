@@ -67,6 +67,7 @@ jobs:
       - name: Deploy to Azure VM
         uses: azure/CLI@v2
         with:
+          azcliversion: 2.79.0
           inlineScript: |
             echo "========================================="
             echo "Starting Deployment to Azure VM"
