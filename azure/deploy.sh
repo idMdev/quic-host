@@ -4,7 +4,8 @@
 # Uses VM managed identity for ACR authentication
 
 set -e
-
+#marker to indicate execution start
+touch /tmp/startactionrun
 # Configuration constants
 METADATA_ENDPOINT="http://169.254.169.254/metadata/identity/oauth2/token"
 METADATA_API_VERSION="2021-02-01"
