@@ -106,6 +106,7 @@ jobs:
             echo ""
             # Copy deploy script to VM and execute it (no password needed with managed identity)
             DEPLOY_OUTPUT=$(az vm run-command invoke \
+              --command-id RunShellScript \
               --resource-group "${{ vars.RESOURCE_GROUP }}" \
               --name "${VM_NAME}" \
               --location "${VM_LOCATION}" \
