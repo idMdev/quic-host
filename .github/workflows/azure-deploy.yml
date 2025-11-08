@@ -106,12 +106,11 @@ jobs:
             echo ""
             # Copy deploy script to VM and execute it (no password needed with managed identity)
             DEPLOY_OUTPUT=$(az vm run-command invoke \
-              --name "${JOB_NAME}" \
               --resource-group "${{ vars.RESOURCE_GROUP }}" \
-              --vm-name "${VM_NAME}" \
+              --name "${VM_NAME}" \
               --location "${VM_LOCATION}" \
               --parameters "acrServer=${ACR_URL}" "imageName=${IMAGE_NAME}" "containerName=${CONTAINER_NAME}" \
-              --script @"azure/deploy.sh"
+              --scripts @"azure/deploy.sh"
               )
 
             echo "========================================="
