@@ -109,7 +109,6 @@ jobs:
               --command-id RunShellScript \
               --resource-group "${{ vars.RESOURCE_GROUP }}" \
               --name "${VM_NAME}" \
-              --location "${VM_LOCATION}" \
               --parameters "acrServer=${ACR_URL}" "imageName=${IMAGE_NAME}" "containerName=${CONTAINER_NAME}" \
               --scripts @"azure/deploy.sh"
               )
