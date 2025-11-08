@@ -80,7 +80,8 @@ jobs:
             ACR_URL=${{ env.ACR_URL }}
             IMAGE_NAME=${{ vars.IMAGE_NAME }}
             CONTAINER_NAME=${{ vars.CONTAINER_NAME }}
-            JOB_NAME="${{ vars.IMAGE_NAME }}-${{ github.sha }}"
+            RAND=$(uuidgen | tr -d '-' | head -c12)
+            JOB_NAME="${{ vars.IMAGE_NAME }}-${RAND}"
             # Export to environment variables
             echo "VM_NAME=${VM_NAME}" >> "$GITHUB_ENV"
             echo "VM_IP=${VM_IP}" >> "$GITHUB_ENV"
